@@ -5,11 +5,13 @@ import { randomUUID } from "node:crypto";
 import {
   Timestamp,
   type DocumentData,
+  type DocumentReference,
   type QueryDocumentSnapshot,
   type Transaction,
 } from "firebase-admin/firestore";
 import type Stripe from "stripe";
 
+import { checkoutClaimAction } from "@/lib/domain/checkout-claim";
 import { listingOwnershipMatches } from "@/lib/domain/listing-ownership";
 import { calculateChargeCents } from "@/lib/domain/money";
 import { removalBarrierAllowsIntent } from "@/lib/domain/removal-barrier";
@@ -132,6 +134,106 @@ async function findTargetRankOccupantInTransaction(
   return snapshot.docs[targetRank - 1];
 }
 
+async function settleExistingCheckoutClaim(
+  claimRef: DocumentReference,
+  ownerTokenHash: string,
+): Promise<void> {
+  const claimSnapshot = await claimRef.get();
+  if (!claimSnapshot.exists) return;
+
+  const intentId = claimSnapshot.get("intentId");
+  const sessionId = claimSnapshot.get("stripeSessionId");
+  if (
+    typeof intentId !== "string" ||
+    typeof sessionId !== "string" ||
+    !isCheckoutSessionId(sessionId)
+  ) {
+    return;
+  }
+
+  const ownedByRequester =
+    claimSnapshot.get("ownerTokenHash") === ownerTokenHash;
+  if (!ownedByRequester) return;
+
+  const db = getAdminDb();
+  const intentRef = db.collection("bidIntents").doc(intentId);
+  const intentSnapshot = await intentRef.get();
+  const intentStatus = intentSnapshot.get("status") as
+    | BidIntentStatus
+    | undefined;
+  if (
+    intentStatus === "fulfilled" ||
+    intentStatus === "failed" ||
+    intentStatus === "expired"
+  ) {
+    await db.runTransaction(async (transaction) => {
+      const currentClaim = await transaction.get(claimRef);
+      if (
+        currentClaim.get("intentId") === intentId &&
+        currentClaim.get("ownerTokenHash") === ownerTokenHash
+      ) {
+        transaction.delete(claimRef);
+      }
+    });
+    return;
+  }
+
+  let session: Stripe.Checkout.Session;
+  try {
+    session = await getStripe().checkout.sessions.retrieve(sessionId);
+  } catch (error) {
+    console.error("Unable to inspect the existing Checkout Session", error);
+    throw new ApiError(
+      502,
+      "CHECKOUT_STATUS_UNAVAILABLE",
+      "The previous checkout could not be checked. Try again in a moment.",
+    );
+  }
+
+  if (session.metadata?.bidIntentId !== intentId) {
+    throw new ApiError(
+      409,
+      "LISTING_CHECKOUT_IN_PROGRESS",
+      "A checkout for this listing is already in progress. Try again later.",
+    );
+  }
+
+  let action = checkoutClaimAction(session.status, ownedByRequester);
+  if (action === "block") {
+    throw new ApiError(
+      409,
+      session.status === "complete"
+        ? "CHECKOUT_PAYMENT_PROCESSING"
+        : "LISTING_CHECKOUT_IN_PROGRESS",
+      session.status === "complete"
+        ? "The previous payment is being confirmed. Refresh the board in a moment."
+        : "Another checkout for this listing is already in progress. Try again later.",
+    );
+  }
+
+  if (action === "expire") {
+    try {
+      session = await getStripe().checkout.sessions.expire(sessionId);
+    } catch {
+      session = await getStripe().checkout.sessions.retrieve(sessionId);
+    }
+    action = checkoutClaimAction(session.status, ownedByRequester);
+    if (action !== "release") {
+      throw new ApiError(
+        409,
+        session.status === "complete"
+          ? "CHECKOUT_PAYMENT_PROCESSING"
+          : "CHECKOUT_REPLACEMENT_PENDING",
+        session.status === "complete"
+          ? "The previous payment is being confirmed. Refresh the board in a moment."
+          : "The previous checkout is still closing. Try again in a moment.",
+      );
+    }
+  }
+
+  await markCheckoutSession(session, "expired");
+}
+
 export async function createCheckout(
   requestBody: unknown,
   ownerToken: string,
@@ -187,6 +289,8 @@ export async function createCheckout(
   const rateLimitRef = rateLimitKey
     ? db.collection("checkoutRateLimits").doc(rateLimitKey)
     : null;
+
+  await settleExistingCheckoutClaim(claimRef, ownerTokenHash);
 
   const prepared = await db.runTransaction(async (transaction) => {
     const [
