@@ -2,7 +2,7 @@
 
 TopMySaaS is a weekly SaaS leaderboard. Every active paid listing is ranked by the total amount successfully paid, the Top 5 are highlighted, and the active board resets every Monday at 00:00 UTC.
 
-The public experience has no account system. Firebase Authentication is used only for the single configured administrator. Stripe Checkout collects payments, signed Stripe webhooks update Firestore, and a scheduled Firebase Function archives and closes each weekly board.
+The public experience has no account system. Firebase Authentication is used only for the single configured administrator. Stripe Checkout collects payments, signed Stripe webhooks update Firestore, and an authenticated Vercel Cron job archives and closes each weekly board.
 
 The temporary launch page is enabled by default. It keeps the full bid and payment flow active, counts down to August 24, 2026 at 00:00 UTC, and automatically switches to the complete leaderboard at that instant. The pre-launch board remains the opening live board through August 31, so every active paid listing and total carries into launch. Normal clearing resets begin August 31 and continue every Monday. Set `LAUNCH_MODE=false` only to open the complete leaderboard early.
 
@@ -17,7 +17,7 @@ The temporary launch page is enabled by default. It keeps the full bid and payme
 - Firebase email/password admin login restricted to one configured UID
 - Admin revenue overview, listing controls, bid activity, payment diagnostics, system error tracking, settings, and manual reset
 - Aggregate outbound listing-click tracking with lifetime and per-board admin counts
-- Monday 00:00 UTC scheduled reset with Top 5 archives
+- Authenticated 00:00 UTC Vercel Cron recovery check with one idempotent reset per weekly board and Top 5 archives
 - Deny-all Firestore client rules and required composite indexes
 - Terms, Privacy Policy, metadata, sitemap, robots, manifest, and generated social image
 - Unit and Playwright browser tests for the critical public and admin entry flows
@@ -28,7 +28,7 @@ The temporary launch page is enabled by default. It keeps the full bid and payme
 - npm 10 or newer
 - A Firebase project with Firestore and Email/Password Authentication
 - A Stripe account
-- Firebase CLI access for rules, indexes, and scheduled Functions deployment
+- Firebase CLI access for Firestore rules and indexes
 - A Next.js hosting environment that supports Route Handlers, such as Vercel
 
 ## Local setup
@@ -87,6 +87,7 @@ The seed command also sets the current minimum bid to $5 and the minimum increme
 | `FIREBASE_PRIVATE_KEY` | Server | Service account private key, with newlines encoded as `\n` |
 | `FIREBASE_ADMIN_UID` | Server | The only Firebase Authentication UID permitted in `/admin` |
 | `RATE_LIMIT_SALT` | Server | Random secret used to hash checkout rate-limit keys |
+| `CRON_SECRET` | Server | Random secret Vercel uses to authenticate `/api/cron/weekly-reset` |
 | `STRIPE_SECRET_KEY` | Server | Stripe secret API key |
 | `STRIPE_WEBHOOK_SECRET` | Server | Signing secret for the Checkout webhook endpoint |
 
@@ -98,7 +99,7 @@ On Google-managed infrastructure, Application Default Credentials can replace th
 2. Enable Email/Password under Authentication.
 3. Create the administrator user and copy its Firebase UID into `FIREBASE_ADMIN_UID`.
 4. Create a server service account or configure Application Default Credentials.
-5. Deploy rules, indexes, and the scheduled Function together from the repository root, targeting the intended project explicitly:
+5. Deploy rules and indexes from the repository root, targeting the intended project explicitly:
 
 ```bash
 npm run firebase:deploy -- --project <firebase-project-id>
@@ -110,7 +111,7 @@ npm run firebase:deploy -- --project <firebase-project-id>
 npx firebase-tools firestore:indexes --project <firebase-project-id> --pretty
 ```
 
-The deploy script includes both `firestore` and `functions`. The scheduled `weeklyBoardReset` Function uses `0 0 * * 1` with the `UTC` timezone. Its August 24, 2026 invocation records the public launch without clearing the extended opening board. The August 31 invocation performs the first clearing reset, and later Mondays use the normal weekly flow. This Function version must be deployed before August 24 or an older deployed reset could clear the pre-launch listings. A successful index deployment starts an asynchronous build; queries can still fail until the required indexes are ready.
+The production reset is configured in `vercel.json` and calls the authenticated `/api/cron/weekly-reset` route at 00:00 UTC each day. Its deterministic weekly reset ID makes Tuesday through Sunday successful no-ops after Monday completes, while also providing automatic catch-up attempts if Monday fails. Every invocation before August 31, 2026 preserves the extended opening board. The August 31 invocation performs the first clearing reset, and later Mondays use the normal weekly flow. Set a strong `CRON_SECRET` in Vercel Production before deploying. The `functions` package remains an optional Firebase scheduler fallback; do not deploy it while the Vercel Cron job is enabled. A successful index deployment starts an asynchronous build; queries can still fail until the required indexes are ready.
 
 For local emulators, add these values to `.env.local`:
 
@@ -216,9 +217,9 @@ npm run build
 
 ## Production deployment
 
-1. Deploy Firestore rules, indexes, and the launch-aware scheduled Function with `npm run firebase:deploy -- --project <firebase-project-id>` before August 24, 2026.
+1. Deploy Firestore rules and indexes with `npm run firebase:deploy -- --project <firebase-project-id>`.
 2. Confirm every required Firestore composite index reports `READY`.
-3. Add every production environment variable to the Next.js host.
+3. Add every production environment variable to the Next.js host, including a strong `CRON_SECRET`.
 4. Set `NEXT_PUBLIC_SITE_URL=https://topmysaas.com` and `DEMO_MODE=false`.
 5. Deploy the Next.js application.
 6. Register a separate live Stripe webhook and update both `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` together.

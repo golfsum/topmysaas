@@ -25,6 +25,14 @@ const checkoutSource = readFileSync(
   join(process.cwd(), "src/lib/server/checkout-service.ts"),
   "utf8",
 );
+const cronRouteSource = readFileSync(
+  join(process.cwd(), "src/app/api/cron/weekly-reset/route.ts"),
+  "utf8",
+);
+const vercelConfig = readFileSync(
+  join(process.cwd(), "vercel.json"),
+  "utf8",
+);
 
 describe("weekly reset observability", () => {
   it("retains the opening board at launch and clears it on August 31", () => {
@@ -78,6 +86,19 @@ describe("weekly reset observability", () => {
     expect(functionSource).toContain('status: "failed"');
     expect(functionSource).toMatch(/logger\.error\("Weekly board reset failed"/);
     expect(functionSource).toContain("throw error;");
+  });
+
+  it("uses an authenticated Vercel cron as the production reset scheduler", () => {
+    expect(vercelConfig).toContain('"path": "/api/cron/weekly-reset"');
+    expect(vercelConfig).toContain('"schedule": "0 0 * * *"');
+    expect(cronRouteSource).toContain("process.env.CRON_SECRET");
+    expect(cronRouteSource).toContain("timingSafeEqual");
+    expect(cronRouteSource).toContain(
+      "if (isInitialExtendedBoardPeriod(scheduledAt))",
+    );
+    expect(boardDataSource).toContain("resetPreviousBoardOnSchedule");
+    expect(boardDataSource).toContain('status: "already-complete"');
+    expect(boardDataSource).toContain("leaseExpiresAt");
   });
 
   it("retries the same board generation after a recorded failure", () => {

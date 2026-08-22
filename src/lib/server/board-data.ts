@@ -1,5 +1,7 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
+
 import {
   FieldValue,
   Timestamp,
@@ -14,7 +16,7 @@ import type {
   PublicListing,
 } from "@/lib/domain/types";
 import { DEFAULT_BOARD_SETTINGS } from "@/lib/domain/types";
-import { getUtcWeekBounds } from "@/lib/domain/week";
+import { getPreviousWeekId, getUtcWeekBounds } from "@/lib/domain/week";
 
 import { ApiError } from "./api-error";
 import {
@@ -28,6 +30,7 @@ import { mapPublicListing, parseBoardSettings } from "./firestore-mappers";
 
 const SETTINGS_PATH = "settings/board";
 const RESET_TRANSACTION_CONCURRENCY = 50;
+const SCHEDULED_RESET_LEASE_MS = 10 * 60_000;
 
 async function deactivateListingsStillOnBoard(
   listings: QueryDocumentSnapshot[],
@@ -173,6 +176,11 @@ export type ResetResult = {
   deactivatedCount: number;
 };
 
+export type ScheduledResetResult = ResetResult & {
+  weekId: string;
+  status: "completed" | "already-complete" | "in-progress";
+};
+
 export async function resetCurrentBoard(
   reason: "manual" | "scheduled" = "manual",
   now = new Date(),
@@ -237,6 +245,179 @@ export async function resetCurrentBoard(
   });
 
   return { resetId, deactivatedCount };
+}
+
+export async function resetPreviousBoardOnSchedule(
+  scheduledAt = new Date(),
+): Promise<ScheduledResetResult> {
+  const db = getAdminDb();
+  const { startsAt: boundaryAt } = getUtcWeekBounds(scheduledAt);
+  const weekId = getPreviousWeekId(boundaryAt);
+  const resetId = `weekly-${weekId}`;
+  const resetRef = db.collection("resets").doc(resetId);
+  const stateRef = db.collection(BOARD_STATES_COLLECTION).doc(weekId);
+  const attemptId = randomUUID();
+  const attemptAt = Timestamp.fromDate(scheduledAt);
+  const resetAt = Timestamp.fromDate(boundaryAt);
+  const leaseExpiresAt = Timestamp.fromMillis(
+    scheduledAt.getTime() + SCHEDULED_RESET_LEASE_MS,
+  );
+
+  const lease = await db.runTransaction(async (transaction) => {
+    const existingReset = await transaction.get(resetRef);
+    if (
+      existingReset.exists &&
+      existingReset.get("status") === "complete"
+    ) {
+      return { status: "already-complete" as const };
+    }
+
+    const existingLease = existingReset.get("leaseExpiresAt");
+    if (
+      existingReset.exists &&
+      existingReset.get("status") === "running" &&
+      existingLease instanceof Timestamp &&
+      existingLease.toMillis() > scheduledAt.getTime()
+    ) {
+      return { status: "in-progress" as const };
+    }
+
+    const existingGeneration = existingReset.get("boardGeneration");
+    if (
+      existingReset.exists &&
+      typeof existingGeneration === "number" &&
+      Number.isSafeInteger(existingGeneration) &&
+      existingGeneration >= 0
+    ) {
+      transaction.set(
+        resetRef,
+        {
+          status: "running",
+          attemptId,
+          leaseExpiresAt,
+          lastAttemptAt: attemptAt,
+        },
+        { merge: true },
+      );
+      return {
+        status: "acquired" as const,
+        boardGeneration: existingGeneration,
+      };
+    }
+
+    const stateSnapshot = await transaction.get(stateRef);
+    const currentGeneration = parseBoardGeneration(stateSnapshot.data());
+    transaction.set(
+      stateRef,
+      {
+        generation: currentGeneration + 1,
+        lastResetAt: resetAt,
+        lastResetReason: "scheduled",
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    transaction.set(
+      resetRef,
+      {
+        status: "running",
+        reason: "scheduled",
+        weekId,
+        boardGeneration: currentGeneration,
+        attemptId,
+        leaseExpiresAt,
+        scheduledAt: resetAt,
+        startedAt: attemptAt,
+        updatedAt: FieldValue.serverTimestamp(),
+      },
+      { merge: true },
+    );
+    return {
+      status: "acquired" as const,
+      boardGeneration: currentGeneration,
+    };
+  });
+
+  if (lease.status !== "acquired") {
+    return {
+      resetId,
+      weekId,
+      status: lease.status,
+      deactivatedCount: 0,
+    };
+  }
+
+  try {
+    const activeSnapshot = await db
+      .collection("listings")
+      .where("weekId", "==", weekId)
+      .where("boardGeneration", "==", lease.boardGeneration)
+      .where("isActive", "==", true)
+      .get();
+    const ranked = rankListings(activeSnapshot.docs.map(mapPublicListing));
+    const archiveRef = db.collection("archives").doc(resetId);
+    const archiveSnapshot = await archiveRef.get();
+    if (!archiveSnapshot.exists) {
+      await archiveRef.create({
+        resetId,
+        reason: "scheduled",
+        weekId,
+        boardGeneration: lease.boardGeneration,
+        listings: getTopFive(ranked),
+        archivedAt: resetAt,
+      });
+    }
+
+    const deactivatedCount = await deactivateListingsStillOnBoard(
+      activeSnapshot.docs,
+      weekId,
+      lease.boardGeneration,
+      resetAt,
+    );
+
+    await db.runTransaction(async (transaction) => {
+      const currentReset = await transaction.get(resetRef);
+      if (currentReset.get("attemptId") !== attemptId) {
+        throw new Error("The scheduled reset lease changed before completion.");
+      }
+      transaction.set(
+        resetRef,
+        {
+          status: "complete",
+          deactivatedCount,
+          completedAt: FieldValue.serverTimestamp(),
+          leaseExpiresAt: FieldValue.delete(),
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    });
+
+    return {
+      resetId,
+      weekId,
+      status: "completed",
+      deactivatedCount,
+    };
+  } catch (error) {
+    await db
+      .runTransaction(async (transaction) => {
+        const currentReset = await transaction.get(resetRef);
+        if (currentReset.get("attemptId") !== attemptId) return;
+        transaction.set(
+          resetRef,
+          {
+            status: "failed",
+            failedAt: FieldValue.serverTimestamp(),
+            leaseExpiresAt: FieldValue.delete(),
+            updatedAt: FieldValue.serverTimestamp(),
+          },
+          { merge: true },
+        );
+      })
+      .catch(() => undefined);
+    throw error;
+  }
 }
 
 export function requireFirebaseConfiguration(): void {

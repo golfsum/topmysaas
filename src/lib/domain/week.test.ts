@@ -36,6 +36,15 @@ describe("UTC board weeks", () => {
     );
   });
 
+  it("keeps daily reset recovery checks pointed at the prior board", () => {
+    expect(getPreviousWeekId(new Date("2026-09-01T00:10:00.000Z"))).toBe(
+      "2026-08-17",
+    );
+    expect(getPreviousWeekId(new Date("2026-09-08T00:10:00.000Z"))).toBe(
+      "2026-08-31",
+    );
+  });
+
   it("keeps checkout open through launch and closes before August 31", () => {
     expect(
       isCheckoutWindowOpen(new Date("2026-08-23T23:29:59.000Z"), 30),
