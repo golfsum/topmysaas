@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, RefreshCw } from "lucide-react";
+import Link from "next/link";
 
 export default function AdminError({ reset }: { reset: () => void }) {
   return (
@@ -15,14 +16,22 @@ export default function AdminError({ reset }: { reset: () => void }) {
         <p className="mt-3 text-sm leading-6 text-zinc-400">
           Verify the Firebase indexes are ready, then try the request again.
         </p>
-        <button
-          type="button"
-          onClick={reset}
-          className="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#67e85f] px-5 text-sm font-semibold text-[#10200e] transition hover:bg-[#7df175] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7df175]"
-        >
-          <RefreshCw className="h-4 w-4" aria-hidden="true" />
-          Try again
-        </button>
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+          <button
+            type="button"
+            onClick={reset}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#67e85f] px-5 text-sm font-semibold text-[#10200e] transition hover:bg-[#7df175] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#7df175]"
+          >
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            Try again
+          </button>
+          <Link
+            href="/admin/errors"
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/10 px-5 text-sm font-medium text-zinc-300 transition hover:border-white/20 hover:bg-white/5 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#67e85f]"
+          >
+            Open system errors
+          </Link>
+        </div>
       </section>
     </main>
   );

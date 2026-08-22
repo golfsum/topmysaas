@@ -1,6 +1,10 @@
 import "server-only";
 
-import { FieldValue, Timestamp } from "firebase-admin/firestore";
+import {
+  FieldValue,
+  Timestamp,
+  type QueryDocumentSnapshot,
+} from "firebase-admin/firestore";
 
 import { getDemoLeaderboard } from "@/lib/domain/demo";
 import { findRank, getTopFive, rankListings } from "@/lib/domain/ranking";
@@ -19,9 +23,56 @@ import {
   parseBoardGeneration,
 } from "./board-state";
 import { getAdminDb, isFirebaseAdminConfigured } from "./firebase-admin";
+import { recordErrorEvent } from "./error-events";
 import { mapPublicListing, parseBoardSettings } from "./firestore-mappers";
 
 const SETTINGS_PATH = "settings/board";
+const RESET_TRANSACTION_CONCURRENCY = 50;
+
+async function deactivateListingsStillOnBoard(
+  listings: QueryDocumentSnapshot[],
+  weekId: string,
+  boardGeneration: number,
+  resetAt: Timestamp,
+): Promise<number> {
+  const db = getAdminDb();
+  let deactivatedCount = 0;
+
+  for (
+    let start = 0;
+    start < listings.length;
+    start += RESET_TRANSACTION_CONCURRENCY
+  ) {
+    const results = await Promise.all(
+      listings
+        .slice(start, start + RESET_TRANSACTION_CONCURRENCY)
+        .map((listing) =>
+          db.runTransaction(async (transaction) => {
+            const current = await transaction.get(listing.ref);
+            if (
+              !current.exists ||
+              current.get("weekId") !== weekId ||
+              Number(current.get("boardGeneration") ?? -1) !==
+                boardGeneration ||
+              current.get("isActive") !== true
+            ) {
+              return false;
+            }
+
+            transaction.update(listing.ref, {
+              isActive: false,
+              resetAt,
+              updatedAt: FieldValue.serverTimestamp(),
+            });
+            return true;
+          }),
+        ),
+    );
+    deactivatedCount += results.filter(Boolean).length;
+  }
+
+  return deactivatedCount;
+}
 
 export function unavailableLeaderboardSnapshot(
   now = new Date(),
@@ -76,8 +127,19 @@ export async function getLeaderboardSnapshot(
       generatedAt: now.toISOString(),
       source: "firestore",
     };
-  } catch (error) {
-    console.error("Unable to load the public leaderboard", error);
+  } catch {
+    await recordErrorEvent({
+      category: "leaderboard",
+      severity: "critical",
+      code: "LEADERBOARD_LOAD_FAILED",
+      operation: "load_public_leaderboard",
+      message:
+        "The public leaderboard could not be loaded from Firestore and returned an unavailable state.",
+      actionRequired: true,
+      retryable: true,
+      weekId,
+      dedupeKey: `leaderboard:${weekId}:load-failed`,
+    });
     return unavailableLeaderboardSnapshot(now);
   }
 }
@@ -158,26 +220,23 @@ export async function resetCurrentBoard(
     { merge: true },
   );
 
-  const writer = db.bulkWriter();
-  for (const listing of activeSnapshot.docs) {
-    writer.update(listing.ref, {
-      isActive: false,
-      resetAt,
-      updatedAt: FieldValue.serverTimestamp(),
-    });
-  }
-  await writer.close();
+  const deactivatedCount = await deactivateListingsStillOnBoard(
+    activeSnapshot.docs,
+    weekId,
+    previousGeneration,
+    resetAt,
+  );
 
   await resetRef.set({
     status: "complete",
     reason,
     weekId,
     boardGeneration: previousGeneration,
-    deactivatedCount: activeSnapshot.size,
+    deactivatedCount,
     completedAt: FieldValue.serverTimestamp(),
   });
 
-  return { resetId, deactivatedCount: activeSnapshot.size };
+  return { resetId, deactivatedCount };
 }
 
 export function requireFirebaseConfiguration(): void {

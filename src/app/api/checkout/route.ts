@@ -12,6 +12,10 @@ import {
 } from "@/lib/server/api-error";
 import { createCheckout } from "@/lib/server/checkout-service";
 import {
+  recordApiErrorEvent,
+  requestIdFrom,
+} from "@/lib/server/error-events";
+import {
   getOrCreateOwnerToken,
   hashOwnerToken,
   OWNER_TOKEN_COOKIE,
@@ -77,6 +81,20 @@ export async function POST(request: NextRequest) {
     );
     return response;
   } catch (error) {
+    const code =
+      error instanceof ApiError ? error.code : "CHECKOUT_INTERNAL_ERROR";
+    await recordApiErrorEvent(error, {
+      category: "checkout",
+      severity:
+        error instanceof ApiError && error.status >= 503
+          ? "critical"
+          : "error",
+      operation: "create_checkout",
+      requestId: requestIdFrom(request),
+      actionRequired: true,
+      retryable: true,
+      dedupeKey: `checkout:${code}`,
+    });
     return apiErrorResponse(error);
   }
 }

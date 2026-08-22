@@ -8,6 +8,7 @@ import {
 } from "@/lib/domain/types";
 import { paginateLeaderboard } from "@/lib/domain/leaderboard-pagination";
 import { listingVisitPath } from "@/lib/domain/listing-links";
+import { searchRankedListings } from "@/lib/domain/listing-search";
 import {
   ArrowUpRight,
   Bolt,
@@ -25,6 +26,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BidDialog, type BidTarget } from "./bid-dialog";
 import { Countdown } from "./countdown";
 import { LeaderboardPagination } from "./leaderboard-pagination";
+import { ListingIcon } from "./listing-icon";
+import { ListingSearchForm } from "./listing-search-form";
 import { LowerRankings } from "./lower-rankings";
 import { SiteFooter } from "./site-footer";
 import { SiteHeader } from "./site-header";
@@ -35,6 +38,7 @@ type PublicHomeProps = {
   initialSnapshot?: LeaderboardSnapshot | null;
   checkoutCancelled?: boolean;
   requestedPage?: number;
+  searchQuery?: string;
 };
 
 const rules = [
@@ -82,13 +86,6 @@ function displayDomain(value: string) {
   }
 }
 
-function initials(name: string) {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "S";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return `${words[0][0]}${words[1][0]}`.toUpperCase();
-}
-
 function minimumForSpot(listing: PublicListing | undefined, settings: BoardSettings) {
   return listing
     ? Math.max(settings.minBidCents, listing.bidAmountCents + settings.minIncrementCents)
@@ -97,18 +94,12 @@ function minimumForSpot(listing: PublicListing | undefined, settings: BoardSetti
 
 function ProductMark({ listing, rank, large = false }: { listing: PublicListing; rank: number; large?: boolean }) {
   return (
-    <span
-      aria-hidden="true"
-      className={`inline-flex shrink-0 items-center justify-center rounded-xl border font-extrabold tracking-[-0.04em] ${
-        large ? "h-16 w-16 text-xl sm:h-[72px] sm:w-[72px] sm:text-2xl" : "h-11 w-11 text-sm"
-      } ${
-        rank === 1
-          ? "border-[#67e85f]/35 bg-[#67e85f]/15 text-[#8af384] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]"
-          : "border-white/10 bg-white/[0.055] text-[#dce1e5]"
-      }`}
-    >
-      {initials(listing.name)}
-    </span>
+    <ListingIcon
+      name={listing.name}
+      url={listing.url}
+      highlighted={rank === 1}
+      size={large ? "large" : "medium"}
+    />
   );
 }
 
@@ -155,7 +146,7 @@ function ProductDetails({
       target="_blank"
       rel="sponsored nofollow noopener noreferrer"
       aria-label={`Visit ${listing.name}, opens in a new tab`}
-      className="group flex min-w-0 items-center gap-3.5 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#67e85f] sm:gap-4"
+      className="listing-row-link group flex min-w-0 items-center gap-3.5 rounded-sm sm:gap-4"
     >
       {content}
     </a>
@@ -190,6 +181,7 @@ export function PublicHome({
   initialSnapshot = null,
   checkoutCancelled = false,
   requestedPage = 1,
+  searchQuery = "",
 }: PublicHomeProps) {
   const initialUsableSnapshot =
     initialSnapshot?.source === "unavailable" ? null : initialSnapshot;
@@ -252,15 +244,15 @@ export function PublicHome({
     snapshot?.source === "firestore" || snapshot?.source === "demo";
   const trackClicks = snapshot?.source === "firestore";
   const allListings = snapshot?.listings ?? [];
-  const leaderboardPage = paginateLeaderboard(allListings, requestedPage);
+  const searchActive = searchQuery.length > 0;
+  const searchedListings = searchRankedListings(allListings, searchQuery);
+  const leaderboardPage = paginateLeaderboard(searchedListings, requestedPage);
   const listings = allListings.slice(0, 5);
-  const showHighlightedRankings = leaderboardPage.currentPage === 1;
-  const lowerListings = showHighlightedRankings
+  const showHighlightedRankings =
+    !searchActive && leaderboardPage.currentPage === 1;
+  const lowerRankedListings = showHighlightedRankings
     ? leaderboardPage.listings.slice(5)
     : leaderboardPage.listings;
-  const lowerStartRank = showHighlightedRankings
-    ? 6
-    : leaderboardPage.startRank;
   const topListing = listings[0];
   const resetAt = snapshot?.nextResetAt ?? nextMondayUtc();
   const generatedAt = Date.parse(snapshot?.generatedAt ?? "");
@@ -391,7 +383,7 @@ export function PublicHome({
                   </button>
                 </div>
               ) : topListing ? (
-                <div className="grid min-h-[170px] gap-6 rounded-2xl border border-[#37414a] bg-[linear-gradient(135deg,rgba(20,25,29,0.98),rgba(13,17,20,0.98))] p-5 shadow-[0_18px_60px_rgba(0,0,0,0.24)] sm:p-7 md:grid-cols-[1.3fr_0.85fr] md:items-center md:gap-8">
+                <div className="listing-row grid min-h-[170px] gap-6 rounded-2xl border border-[#37414a] bg-[linear-gradient(135deg,rgba(20,25,29,0.98),rgba(13,17,20,0.98))] p-5 shadow-[0_18px_60px_rgba(0,0,0,0.24)] transition-colors hover:border-[#48545f] sm:p-7 md:grid-cols-[1.3fr_0.85fr] md:items-center md:gap-8">
                   <div>
                     <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.12em] text-[#67e85f] md:hidden">
                       Current #1
@@ -413,11 +405,11 @@ export function PublicHome({
                       type="button"
                       onClick={() => openBid(1)}
                       disabled={!biddingEnabled}
-                      className="mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#67e85f] px-4 text-sm font-bold text-[#071006] transition-colors hover:bg-[#78f271] active:bg-[#52ce4c] disabled:cursor-not-allowed disabled:bg-[#36453a] disabled:text-[#89948b]"
+                      className="listing-claim-control mt-4 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#67e85f] px-4 text-sm font-bold text-[#071006] transition-colors hover:bg-[#78f271] active:bg-[#52ce4c] disabled:cursor-not-allowed disabled:bg-[#36453a] disabled:text-[#89948b]"
                     >
                       <Gavel aria-hidden="true" size={17} strokeWidth={2.5} />
                       {biddingEnabled
-                        ? `Take #1 for ${formatMoney(minimumForSpot(topListing, settings))}`
+                        ? `Claim this spot for ${formatMoney(minimumForSpot(topListing, settings))}`
                         : disabledBidLabel}
                     </button>
                   </div>
@@ -454,7 +446,9 @@ export function PublicHome({
               <div>
                 <div className="flex flex-wrap items-center gap-3">
                   <h2 id="leaderboard-title" className="text-2xl font-bold tracking-[-0.035em] sm:text-[27px]">
-                    {showHighlightedRankings
+                    {searchActive
+                      ? "Search the leaderboard"
+                      : showHighlightedRankings
                       ? "Current Top 5"
                       : `Rankings #${leaderboardPage.startRank}–#${leaderboardPage.endRank}`}
                   </h2>
@@ -465,7 +459,9 @@ export function PublicHome({
                   ) : null}
                 </div>
                 <p className="mt-1.5 text-sm text-[#8f98a1]">
-                  {showHighlightedRankings
+                  {searchActive
+                    ? "Find any active company while keeping its true global rank."
+                    : showHighlightedRankings
                     ? "Successful bids are ranked by total paid this week."
                     : "Continuing the live leaderboard in exact global rank order."}
                 </p>
@@ -494,6 +490,20 @@ export function PublicHome({
               </div>
             ) : null}
 
+            <ListingSearchForm
+              query={searchQuery}
+              resultCount={searchedListings.length}
+            />
+
+            {searchActive && leaderboardPage.listings.length === 0 ? (
+              <div className="mt-6 rounded-xl border border-white/[0.08] bg-[#0a0d10] px-5 py-10 text-center">
+                <p className="text-base font-bold text-white">No matching company found</p>
+                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#8f98a1]">
+                  Try the company name, its domain, or a word from its description.
+                </p>
+              </div>
+            ) : null}
+
             {showHighlightedRankings ? (
               <>
                 <div
@@ -516,7 +526,7 @@ export function PublicHome({
                     <div
                       role="row"
                       key={listing?.id ?? `open-${rank}`}
-                      className={`grid min-h-[78px] grid-cols-[70px_minmax(0,1fr)_150px_210px] items-center border-b border-white/[0.075] px-4 transition-colors last:border-b-0 hover:bg-white/[0.025] ${rank === 1 ? "bg-[#67e85f]/[0.025]" : ""}`}
+                      className={`listing-row grid min-h-[78px] grid-cols-[70px_minmax(0,1fr)_150px_210px] items-center border-b border-white/[0.075] px-4 transition-colors last:border-b-0 hover:bg-white/[0.025] ${rank === 1 ? "bg-[#67e85f]/[0.025]" : ""}`}
                     >
                       <div role="cell">
                         <span className={`tabular-nums inline-flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-sm font-extrabold ${rank === 1 ? "bg-[#67e85f]/15 text-[#78f271]" : "bg-white/[0.05] text-[#dce1e5]"}`}>
@@ -548,17 +558,17 @@ export function PublicHome({
                           aria-label={
                             !biddingEnabled
                               ? disabledBidLabel
-                              : listing
-                                ? `Take rank ${rank} for ${formatMoney(minimum)}`
-                                : `Place a bid from ${formatMoney(minimum)}`
+                              : `Claim rank ${rank} for ${formatMoney(minimum)}`
                           }
-                          className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-[#67e85f]/25 bg-[#67e85f]/10 px-3 text-[13px] font-bold text-[#78f271] transition-colors hover:border-[#67e85f]/45 hover:bg-[#67e85f]/15 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-[#747e87]"
+                          className="listing-claim-control listing-claim-reveal inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-[#67e85f]/25 bg-[#67e85f]/10 px-3 text-xs font-bold text-[#78f271] transition-[color,background-color,border-color,opacity,transform] hover:border-[#67e85f]/45 hover:bg-[#67e85f]/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#67e85f] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-[#747e87]"
                         >
                           {!biddingEnabled
                             ? disabledBidLabel
-                            : listing
-                              ? `Take this spot for ${formatMoney(minimum)}`
-                              : `Place a bid from ${formatMoney(minimum)}`}
+                            : (
+                                <span className="whitespace-nowrap">
+                                  Claim this spot for {formatMoney(minimum)}
+                                </span>
+                              )}
                           <ArrowUpRight aria-hidden="true" size={14} />
                         </button>
                       </div>
@@ -574,7 +584,7 @@ export function PublicHome({
                 const listing = listings[index];
                 const minimum = minimumForSpot(listing, settings);
                 return (
-                  <article key={listing?.id ?? `mobile-open-${rank}`} className={`rounded-xl border p-4 ${rank === 1 ? "border-[#67e85f]/25 bg-[#67e85f]/[0.035]" : "border-[#293038] bg-[#0c0f12]"}`}>
+                  <article key={listing?.id ?? `mobile-open-${rank}`} className={`listing-row rounded-xl border p-4 transition-colors ${rank === 1 ? "border-[#67e85f]/25 bg-[#67e85f]/[0.035]" : "border-[#293038] bg-[#0c0f12]"}`}>
                     <div className="mb-4 flex items-center justify-between gap-4">
                       <span className={`tabular-nums inline-flex h-8 items-center rounded-lg px-2.5 text-sm font-extrabold ${rank === 1 ? "bg-[#67e85f]/15 text-[#78f271]" : "bg-white/[0.05] text-[#dce1e5]"}`}>
                         #{rank}
@@ -599,13 +609,15 @@ export function PublicHome({
                       type="button"
                       onClick={() => openBid(rank)}
                       disabled={!biddingEnabled}
-                      className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#67e85f]/25 bg-[#67e85f]/10 px-3 text-sm font-bold text-[#78f271] transition-colors hover:bg-[#67e85f]/15 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-[#747e87]"
+                      className="listing-claim-control mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-[#67e85f]/25 bg-[#67e85f]/10 px-3 text-sm font-bold text-[#78f271] transition-colors hover:bg-[#67e85f]/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#67e85f] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-[#747e87]"
                     >
                       {!biddingEnabled
                         ? disabledBidLabel
-                        : listing
-                          ? `Take this spot for ${formatMoney(minimum)}`
-                          : `Place a bid from ${formatMoney(minimum)}`}
+                        : (
+                            <span className="whitespace-nowrap">
+                              Claim this spot for {formatMoney(minimum)}
+                            </span>
+                          )}
                       <ArrowUpRight aria-hidden="true" size={15} />
                     </button>
                   </article>
@@ -616,13 +628,23 @@ export function PublicHome({
             ) : null}
 
             <LowerRankings
-              listings={lowerListings}
-              startRank={lowerStartRank}
+              rankedListings={lowerRankedListings}
               settings={settings}
               biddingEnabled={biddingEnabled}
               disabledBidLabel={disabledBidLabel}
               trackClicks={trackClicks}
               onBid={openBid}
+              heading={searchActive ? "Search results" : undefined}
+              description={
+                searchActive
+                  ? "Matching companies are shown with their true current leaderboard rank."
+                  : undefined
+              }
+              rangeLabel={
+                searchActive
+                  ? `Matches ${leaderboardPage.startRank}–${leaderboardPage.endRank}`
+                  : undefined
+              }
             />
 
             <LeaderboardPagination
@@ -631,6 +653,7 @@ export function PublicHome({
               totalListings={leaderboardPage.totalListings}
               startRank={leaderboardPage.startRank}
               endRank={leaderboardPage.endRank}
+              searchQuery={searchQuery}
             />
 
             <p className="mt-4 text-center text-xs leading-5 text-[#747e87]">
@@ -711,7 +734,7 @@ export function PublicHome({
       <SiteFooter />
       {dialogOpen ? (
         <BidDialog
-          key={`${bidTarget.rank ?? "new"}-${bidTarget.minimumTotalCents}`}
+          key={`${bidTarget.rank ?? "new"}-${bidTarget.minimumTotalCents}-${bidTarget.initialTotalCents ?? "minimum"}`}
           open
           settings={settings}
           target={bidTarget}

@@ -21,9 +21,6 @@ export function SiteFooter() {
           <a href={SUPPORT_EMAIL_HREF} className="rounded-sm transition-colors hover:text-white">
             Contact: {SUPPORT_EMAIL}
           </a>
-          <Link href="/admin" className="rounded-sm transition-colors hover:text-white">
-            Admin
-          </Link>
           <span className="inline-flex items-center gap-1.5 text-[#747e87]">
             <LockKeyhole aria-hidden="true" size={13} />
             Secure checkout by Stripe

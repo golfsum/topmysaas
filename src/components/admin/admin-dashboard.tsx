@@ -8,10 +8,12 @@ import {
   LogOut,
   RefreshCw,
   Settings,
+  ShieldAlert,
   Trophy,
   X,
 } from "lucide-react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
@@ -28,6 +30,10 @@ import { ConfirmDialog, ListingDialog } from "./admin-dialogs";
 import { ListingsSection } from "./listings-section";
 import { OverviewSection, type AdminView } from "./overview-section";
 import { SettingsSection } from "./settings-section";
+
+const ErrorsSection = dynamic(() =>
+  import("./errors-section").then((module) => module.ErrorsSection),
+);
 
 type AdminAction =
   | { action: "createListing"; listing: AdminListingInput }
@@ -54,6 +60,7 @@ const navItems: Array<{
   { id: "overview", label: "Overview", icon: LayoutDashboard },
   { id: "listings", label: "Listings", icon: Trophy },
   { id: "bids", label: "Recent bids", icon: Activity },
+  { id: "errors", label: "System errors", icon: ShieldAlert },
   { id: "settings", label: "Settings", icon: Settings },
 ];
 
@@ -124,6 +131,7 @@ export function AdminDashboard({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMutating, setIsMutating] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [errorsRefreshKey, setErrorsRefreshKey] = useState(0);
 
   const goToLogin = useCallback(() => {
     router.replace("/admin/login");
@@ -154,6 +162,7 @@ export function AdminDashboard({
           dashboard: AdminDashboardData;
         };
         setDashboard(body.dashboard);
+        setErrorsRefreshKey((current) => current + 1);
         if (showSuccess) {
           setNotice({ tone: "success", message: "Dashboard data refreshed." });
         }
@@ -277,6 +286,13 @@ export function AdminDashboard({
         );
       case "bids":
         return <BidsSection bids={dashboard.recentBids} />;
+      case "errors":
+        return (
+          <ErrorsSection
+            refreshKey={errorsRefreshKey}
+            onUnauthorized={goToLogin}
+          />
+        );
       case "settings":
         return (
           <SettingsSection

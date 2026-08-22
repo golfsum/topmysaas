@@ -4,9 +4,70 @@ import type { BidStatusResponse } from "@/lib/domain/types";
 import { Check, Clock3, LoaderCircle, RefreshCw, TriangleAlert, Trophy } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useState } from "react";
 
 type ViewStatus = BidStatusResponse["status"] | "missing" | "error";
+
+type ConfettiStyle = CSSProperties & {
+  "--confetti-color": string;
+  "--confetti-delay": string;
+  "--confetti-drift": string;
+  "--confetti-duration": string;
+  "--confetti-left": string;
+  "--confetti-rotation": string;
+  "--confetti-size": string;
+};
+
+const confettiColors = ["#67e85f", "#ffffff", "#168cff", "#7a39ff", "#fbbf24"] as const;
+
+const confettiPieces = Array.from({ length: 42 }, (_, index) => {
+  const direction = index % 2 === 0 ? 1 : -1;
+  return {
+    color: confettiColors[index % confettiColors.length],
+    delay: `${(index % 8) * 0.08}s`,
+    drift: `${direction * (24 + (index % 6) * 9)}px`,
+    duration: `${2.35 + (index % 5) * 0.18}s`,
+    left: `${2 + ((index * 37) % 96)}%`,
+    rotation: `${direction * (420 + (index % 5) * 90)}deg`,
+    size: `${5 + (index % 4) * 2}px`,
+  };
+});
+
+function ordinalPlace(rank: number) {
+  const lastTwoDigits = rank % 100;
+  if (lastTwoDigits >= 11 && lastTwoDigits <= 13) return `${rank}th`;
+
+  switch (rank % 10) {
+    case 1:
+      return `${rank}st`;
+    case 2:
+      return `${rank}nd`;
+    case 3:
+      return `${rank}rd`;
+    default:
+      return `${rank}th`;
+  }
+}
+
+function SuccessConfetti() {
+  return (
+    <div aria-hidden="true" className="success-confetti" data-success-confetti>
+      {confettiPieces.map((piece, index) => {
+        const style: ConfettiStyle = {
+          "--confetti-color": piece.color,
+          "--confetti-delay": piece.delay,
+          "--confetti-drift": piece.drift,
+          "--confetti-duration": piece.duration,
+          "--confetti-left": piece.left,
+          "--confetti-rotation": piece.rotation,
+          "--confetti-size": piece.size,
+        };
+
+        return <span key={index} className="success-confetti-piece" style={style} />;
+      })}
+    </div>
+  );
+}
 
 export function BidSuccessStatus() {
   const searchParams = useSearchParams();
@@ -72,10 +133,12 @@ export function BidSuccessStatus() {
   const fulfilled = status === "fulfilled";
   const pending = status === "pending";
   const failed = status === "failed" || status === "expired" || status === "missing" || status === "error";
+  const confirmedRank = fulfilled && typeof result?.rank === "number" ? result.rank : null;
 
   return (
     <main id="main-content" className="flex flex-1 items-center px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
-      <div className="mx-auto w-full max-w-[620px] rounded-2xl border border-[#293038] bg-[#0e1114] p-6 text-center shadow-[0_24px_80px_rgba(0,0,0,0.3)] sm:p-10">
+      {confirmedRank !== null ? <SuccessConfetti /> : null}
+      <div className="relative z-[45] mx-auto w-full max-w-[620px] rounded-2xl border border-[#293038] bg-[#0e1114] p-6 text-center shadow-[0_24px_80px_rgba(0,0,0,0.3)] sm:p-10">
         <span
           className={`mx-auto inline-flex h-14 w-14 items-center justify-center rounded-2xl border ${
             fulfilled
@@ -95,17 +158,23 @@ export function BidSuccessStatus() {
         </span>
 
         <p className={`mt-5 text-[11px] font-bold uppercase tracking-[0.13em] ${fulfilled ? "text-[#67e85f]" : pending ? "text-[#aab2ba]" : "text-red-200"}`}>
-          {fulfilled ? "Bid confirmed" : pending ? "Checking payment" : "Needs attention"}
+          {fulfilled ? "Payment successful" : pending ? "Checking payment" : "Needs attention"}
         </p>
         <h1 className="text-balance mt-2 text-3xl font-extrabold tracking-[-0.04em] sm:text-[38px]">
-          {fulfilled ? "Your bid was recorded." : pending ? "Checking your bid." : "We could not confirm this bid."}
+          {confirmedRank !== null
+            ? `You're now in ${ordinalPlace(confirmedRank)} place.`
+            : fulfilled
+              ? "Your bid was recorded."
+              : pending
+                ? "Checking your bid."
+                : "We could not confirm this bid."}
         </h1>
 
         {fulfilled ? (
           <div className="mt-5">
             {result?.listing?.name ? (
               <p className="text-base text-[#c8ced3]">
-                <span className="font-bold text-white">{result.listing.name}</span> has been updated successfully.
+                <span className="font-bold text-white">{result.listing.name}</span> is live on this week&apos;s board.
               </p>
             ) : null}
             {typeof result?.rank === "number" ? (

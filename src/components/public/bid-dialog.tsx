@@ -7,6 +7,7 @@ import { useEffect, useId, useRef, useState, type FormEvent, type MouseEvent } f
 export type BidTarget = {
   rank?: number;
   minimumTotalCents: number;
+  initialTotalCents?: number;
 };
 
 type BidDialogProps = {
@@ -43,6 +44,14 @@ function normalizeUrl(value: string) {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
+function initialAmount(target: BidTarget) {
+  const cents = Math.max(
+    target.minimumTotalCents,
+    target.initialTotalCents ?? target.minimumTotalCents,
+  );
+  return (cents / 100).toFixed(cents % 100 === 0 ? 0 : 2);
+}
+
 export function BidDialog({ open, settings, target, onClose }: BidDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -53,9 +62,7 @@ export function BidDialog({ open, settings, target, onClose }: BidDialogProps) {
   );
   const [form, setForm] = useState<BidForm>(() => ({
     ...initialForm,
-    amount: (target.minimumTotalCents / 100).toFixed(
-      target.minimumTotalCents % 100 === 0 ? 0 : 2,
-    ),
+    amount: initialAmount(target),
   }));
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -297,8 +304,8 @@ export function BidDialog({ open, settings, target, onClose }: BidDialogProps) {
               className="mt-0.5 h-4 w-4 shrink-0 accent-[#67e85f]"
             />
             <span>
-              I understand that bids are final and non-refundable, rankings are temporary, and the board resets
-              every Monday at 00:00 UTC. Read the{" "}
+              I understand that bids are final and non-refundable, rankings are temporary, and boards reset according
+              to the schedule in the Terms. Read the{" "}
               <a href="/terms" target="_blank" rel="noreferrer" className="font-semibold text-white underline decoration-white/30 underline-offset-2 hover:decoration-white">
                 Terms
               </a>{" "}

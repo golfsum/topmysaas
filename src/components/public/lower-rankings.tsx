@@ -5,18 +5,21 @@ import { ArrowUpRight, ExternalLink } from "lucide-react";
 import {
   MAX_TARGETABLE_RANK,
   type BoardSettings,
-  type PublicListing,
 } from "@/lib/domain/types";
+import type { RankedListing } from "@/lib/domain/listing-search";
 import { listingVisitPath } from "@/lib/domain/listing-links";
+import { ListingIcon } from "./listing-icon";
 
 type LowerRankingsProps = {
-  listings: PublicListing[];
-  startRank: number;
+  rankedListings: RankedListing[];
   settings: BoardSettings;
   biddingEnabled: boolean;
   disabledBidLabel: string;
   trackClicks: boolean;
   onBid: (rank?: number) => void;
+  heading?: string;
+  description?: string;
+  rangeLabel?: string;
 };
 
 function formatMoney(cents: number) {
@@ -28,7 +31,7 @@ function formatMoney(cents: number) {
 }
 
 function minimumForListing(
-  listing: PublicListing,
+  listing: RankedListing["listing"],
   settings: BoardSettings,
 ) {
   return Math.max(
@@ -57,15 +60,20 @@ function displayDomain(value: string) {
 }
 
 export function LowerRankings({
-  listings,
-  startRank,
+  rankedListings,
   settings,
   biddingEnabled,
   disabledBidLabel,
   trackClicks,
   onBid,
+  heading = "More ranked listings",
+  description = "Every active paid listing keeps its live rank. The Top 5 stand out above.",
+  rangeLabel,
 }: LowerRankingsProps) {
-  if (listings.length === 0) return null;
+  if (rankedListings.length === 0) return null;
+
+  const firstRank = rankedListings[0].rank;
+  const lastRank = rankedListings.at(-1)?.rank ?? firstRank;
 
   return (
     <section
@@ -78,20 +86,19 @@ export function LowerRankings({
             id="more-rankings-title"
             className="text-sm font-bold text-[#dce1e5]"
           >
-            More ranked listings
+            {heading}
           </h3>
           <p className="mt-0.5 text-xs text-[#8f98a1]">
-            Every active paid listing keeps its live rank. The Top 5 stand out above.
+            {description}
           </p>
         </div>
         <span className="mt-1 text-xs font-medium text-[#8f98a1] sm:mt-0">
-          Ranks #{startRank}–#{startRank + listings.length - 1}
+          {rangeLabel ?? `Ranks #${firstRank}–#${lastRank}`}
         </span>
       </div>
 
-      <ol start={startRank}>
-        {listings.map((listing, index) => {
-          const rank = startRank + index;
+      <ol>
+        {rankedListings.map(({ listing, rank }) => {
           const minimum = minimumForListing(listing, settings);
           const safeUrl = safeListingUrl(listing.url);
           const listingHref = safeUrl
@@ -105,7 +112,7 @@ export function LowerRankings({
             <li
               key={listing.id}
               value={rank}
-              className="grid gap-3 border-b border-white/[0.065] px-4 py-4 last:border-b-0 sm:grid-cols-[56px_minmax(0,1fr)_120px_170px] sm:items-center sm:px-5"
+              className="listing-row grid gap-3 border-b border-white/[0.065] px-4 py-4 transition-colors last:border-b-0 hover:bg-white/[0.025] sm:grid-cols-[56px_minmax(0,1fr)_120px_210px] sm:items-center sm:px-5"
             >
               <div className="flex items-center justify-between gap-4 sm:block">
                 <span className="tabular-nums text-sm font-extrabold text-[#c8ced3]">
@@ -123,8 +130,13 @@ export function LowerRankings({
                     target="_blank"
                     rel="sponsored nofollow noopener noreferrer"
                     aria-label={`Visit ${listing.name}, opens in a new tab`}
-                    className="group inline-flex min-h-11 max-w-full items-center gap-2 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#67e85f]"
+                    className="listing-row-link group flex min-h-11 max-w-full items-center gap-2.5 rounded-sm"
                   >
+                    <ListingIcon
+                      name={listing.name}
+                      url={listing.url}
+                      size="small"
+                    />
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-bold text-white group-hover:text-[#83f27c] sm:text-[15px]">
                         {listing.name}
@@ -140,8 +152,15 @@ export function LowerRankings({
                     />
                   </a>
                 ) : (
-                  <span className="truncate text-sm font-bold text-white sm:text-[15px]">
-                    {listing.name}
+                  <span className="flex items-center gap-2.5">
+                    <ListingIcon
+                      name={listing.name}
+                      url={listing.url}
+                      size="small"
+                    />
+                    <span className="truncate text-sm font-bold text-white sm:text-[15px]">
+                      {listing.name}
+                    </span>
                   </span>
                 )}
                 <p className="mt-1 line-clamp-1 text-xs text-[#8f98a1]">
@@ -160,15 +179,19 @@ export function LowerRankings({
                 aria-label={
                   biddingEnabled
                     ? canTargetRank
-                      ? `Bid for rank ${rank} from ${formatMoney(minimum)}`
+                      ? `Claim rank ${rank} for ${formatMoney(minimum)}`
                       : "Place a bid to move up the leaderboard"
                     : disabledBidLabel
                 }
-                className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.035] px-3 text-xs font-bold text-[#dce1e5] transition-colors hover:border-[#67e85f]/30 hover:bg-[#67e85f]/10 hover:text-[#83f27c] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#67e85f] disabled:cursor-not-allowed disabled:text-[#747e87]"
+                className="listing-claim-control listing-claim-reveal inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-[#67e85f]/25 bg-[#67e85f]/10 px-3 text-xs font-bold text-[#83f27c] transition-[color,background-color,border-color,opacity,transform] hover:border-[#67e85f]/45 hover:bg-[#67e85f]/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#67e85f] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.035] disabled:text-[#747e87]"
               >
                 {biddingEnabled
                   ? canTargetRank
-                    ? `Bid for #${rank} from ${formatMoney(minimum)}`
+                    ? (
+                        <span className="whitespace-nowrap">
+                          Claim this spot for {formatMoney(minimum)}
+                        </span>
+                      )
                     : "Place a bid"
                   : disabledBidLabel}
                 <ArrowUpRight aria-hidden="true" size={13} />

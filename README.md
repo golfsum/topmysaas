@@ -4,7 +4,7 @@ TopMySaaS is a weekly SaaS leaderboard. Every active paid listing is ranked by t
 
 The public experience has no account system. Firebase Authentication is used only for the single configured administrator. Stripe Checkout collects payments, signed Stripe webhooks update Firestore, and a scheduled Firebase Function archives and closes each weekly board.
 
-The temporary launch page is enabled by default. It keeps the full bid and payment flow active while presenting a focused launching-soon experience. Set `LAUNCH_MODE=false` to restore the complete leaderboard homepage without removing the launch page code.
+The temporary launch page is enabled by default. It keeps the full bid and payment flow active, counts down to August 24, 2026 at 00:00 UTC, and automatically switches to the complete leaderboard at that instant. The pre-launch board remains the opening live board through August 31, so every active paid listing and total carries into launch. Normal clearing resets begin August 31 and continue every Monday. Set `LAUNCH_MODE=false` only to open the complete leaderboard early.
 
 ## What is included
 
@@ -15,7 +15,7 @@ The temporary launch page is enabled by default. It keeps the full bid and payme
 - Secure device token for same-device rebids that charge only the difference
 - Atomic board generations that stop delayed webhooks from repopulating a reset board
 - Firebase email/password admin login restricted to one configured UID
-- Admin revenue overview, listing controls, bid activity, settings, and manual reset
+- Admin revenue overview, listing controls, bid activity, payment diagnostics, system error tracking, settings, and manual reset
 - Aggregate outbound listing-click tracking with lifetime and per-board admin counts
 - Monday 00:00 UTC scheduled reset with Top 5 archives
 - Deny-all Firestore client rules and required composite indexes
@@ -76,7 +76,7 @@ The seed command also sets the current minimum bid to $5 and the minimum increme
 | Variable | Scope | Purpose |
 | --- | --- | --- |
 | `NEXT_PUBLIC_SITE_URL` | Public and server | Canonical origin used for same-origin checks and Stripe return URLs |
-| `LAUNCH_MODE` | Server | Shows the temporary launching-soon homepage unless set to `false` |
+| `LAUNCH_MODE` | Server | Enables the launch countdown until its fixed August 24 UTC cutover; set `false` only to open early |
 | `DEMO_MODE` | Server | Enables labeled fixture data for local visual testing |
 | `NEXT_PUBLIC_FIREBASE_API_KEY` | Public | Firebase browser SDK configuration for admin login |
 | `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | Public | Firebase Auth domain |
@@ -110,7 +110,7 @@ npm run firebase:deploy -- --project <firebase-project-id>
 npx firebase-tools firestore:indexes --project <firebase-project-id> --pretty
 ```
 
-The deploy script includes both `firestore` and `functions`. The scheduled `weeklyBoardReset` Function uses `0 0 * * 1` with the `UTC` timezone. A successful index deployment starts an asynchronous build; queries can still fail until the required indexes are ready.
+The deploy script includes both `firestore` and `functions`. The scheduled `weeklyBoardReset` Function uses `0 0 * * 1` with the `UTC` timezone. Its August 24, 2026 invocation records the public launch without clearing the extended opening board. The August 31 invocation performs the first clearing reset, and later Mondays use the normal weekly flow. This Function version must be deployed before August 24 or an older deployed reset could clear the pre-launch listings. A successful index deployment starts an asynchronous build; queries can still fail until the required indexes are ready.
 
 For local emulators, add these values to `.env.local`:
 
@@ -141,6 +141,7 @@ TopMySaaS creates a one-time Checkout Session with inline price data for each va
    - `checkout.session.async_payment_succeeded`
    - `checkout.session.async_payment_failed`
    - `checkout.session.expired`
+   - `payment_intent.payment_failed`
 6. Copy that destination's test `whsec_...` signing secret into `STRIPE_WEBHOOK_SECRET` for the same Vercel environment.
 7. Redeploy after saving the variables. Vercel environment changes do not update an existing deployment.
 8. Place a test bid with card `4242 4242 4242 4242`, any future expiry date, and any three-digit CVC.
@@ -150,7 +151,7 @@ For local webhook testing:
 
 ```bash
 stripe login
-stripe listen --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,checkout.session.expired --forward-to http://localhost:3000/api/stripe/webhook
+stripe listen --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,checkout.session.expired,payment_intent.payment_failed --forward-to http://localhost:3000/api/stripe/webhook
 ```
 
 Use the temporary `whsec_...` value printed by the Stripe CLI in `.env.local`.
@@ -161,7 +162,7 @@ The success redirect never grants a rank. Only a paid Checkout Session received 
 
 1. Finish Stripe account activation, payout-bank setup, two-factor authentication, public business details, and the statement descriptor.
 2. Use separate production Firebase data rather than mixing sandbox bids with live revenue.
-3. Create a live-mode webhook destination with the same URL and four events. Test and live webhook secrets are different.
+3. Create a live-mode webhook destination with the same URL and five events. Test and live webhook secrets are different.
 4. Set the matching `sk_live_...` key and live `whsec_...` secret together in the Vercel Production environment.
 5. Redeploy, complete one small real bid, and verify the Stripe delivery, Firestore records, leaderboard rank, and admin revenue before opening bidding broadly.
 
@@ -179,6 +180,7 @@ Operational collections:
 - `listingClaims`: temporary same-URL Checkout reservation
 - `listingTombstones`: current-week deletion barrier
 - `checkoutRateLimits`: hashed abuse-control windows
+- `systemEnvironments/{environment}/errorEvents`: sanitized payment, webhook, Firebase, admin, and server incidents isolated by deployment environment with a 90-day TTL
 - `listingClickStats` and `boardClickStats`: aggregate lifetime and per-board outbound click counters (no per-click visitor records)
 - `archives` and `resets`: prior Top 5 snapshots and reset execution records
 - `settings/board`: minimum bid, minimum increment, reset close window, and currency
@@ -214,7 +216,7 @@ npm run build
 
 ## Production deployment
 
-1. Deploy Firestore rules, indexes, and Functions with `npm run firebase:deploy -- --project <firebase-project-id>`.
+1. Deploy Firestore rules, indexes, and the launch-aware scheduled Function with `npm run firebase:deploy -- --project <firebase-project-id>` before August 24, 2026.
 2. Confirm every required Firestore composite index reports `READY`.
 3. Add every production environment variable to the Next.js host.
 4. Set `NEXT_PUBLIC_SITE_URL=https://topmysaas.com` and `DEMO_MODE=false`.

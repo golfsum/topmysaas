@@ -27,7 +27,19 @@ const PRELAUNCH_LISTINGS = [
   },
 ];
 
+const INITIAL_BOARD_START_MS = Date.parse("2026-08-17T00:00:00.000Z");
+const INITIAL_LIVE_WEEK_END_MS = Date.parse("2026-08-31T00:00:00.000Z");
+
+function isInitialExtendedBoardPeriod(now) {
+  return (
+    now.getTime() >= INITIAL_BOARD_START_MS &&
+    now.getTime() < INITIAL_LIVE_WEEK_END_MS
+  );
+}
+
 function currentUtcWeekId(now = new Date()) {
+  if (isInitialExtendedBoardPeriod(now)) return "2026-08-17";
+
   const utcMidnight = Date.UTC(
     now.getUTCFullYear(),
     now.getUTCMonth(),
@@ -68,6 +80,10 @@ function tombstoneId(weekId, url) {
 }
 
 function nextUtcMonday(now = new Date()) {
+  if (isInitialExtendedBoardPeriod(now)) {
+    return new Date(INITIAL_LIVE_WEEK_END_MS);
+  }
+
   const next = new Date(`${currentUtcWeekId(now)}T00:00:00.000Z`);
   next.setUTCDate(next.getUTCDate() + 7);
   return next;

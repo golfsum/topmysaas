@@ -36,4 +36,23 @@ describe("leaderboard pagination controls", () => {
       ),
     ).toBe("");
   });
+
+  it("preserves a listing search across result pages", () => {
+    const html = renderToStaticMarkup(
+      <LeaderboardPagination
+        currentPage={2}
+        totalPages={3}
+        totalListings={123}
+        startRank={51}
+        endRank={100}
+        searchQuery="client tools"
+      />,
+    );
+
+    expect(html).toContain("Showing matches");
+    expect(html).toContain("51–100");
+    expect(html).toContain('href="/?q=client+tools#leaderboard"');
+    expect(html).toContain('href="/?q=client+tools&amp;page=3#leaderboard"');
+    expect(html).not.toContain("#51–#100");
+  });
 });

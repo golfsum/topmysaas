@@ -13,18 +13,31 @@ import {
   assertSameOrigin,
   readJson,
 } from "@/lib/server/api-error";
+import {
+  recordApiErrorEvent,
+  requestIdFrom,
+} from "@/lib/server/error-events";
 
 const sessionRequestSchema = z.object({
   idToken: z.string().trim().min(100).max(10_000),
 });
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     return NextResponse.json(
       { authenticated: Boolean(await getAdminSession()) },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
+    await recordApiErrorEvent(error, {
+      category: "admin",
+      severity: "error",
+      operation: "check_admin_session",
+      requestId: requestIdFrom(request),
+      actionRequired: true,
+      retryable: true,
+      dedupeKey: "admin:session-check",
+    });
     return apiErrorResponse(error);
   }
 }
@@ -45,6 +58,15 @@ export async function POST(request: Request) {
     );
     return response;
   } catch (error) {
+    await recordApiErrorEvent(error, {
+      category: "admin",
+      severity: "error",
+      operation: "create_admin_session",
+      requestId: requestIdFrom(request),
+      actionRequired: true,
+      retryable: true,
+      dedupeKey: "admin:session-create",
+    });
     return apiErrorResponse(error);
   }
 }
@@ -63,6 +85,15 @@ export async function DELETE(request: Request) {
     });
     return response;
   } catch (error) {
+    await recordApiErrorEvent(error, {
+      category: "admin",
+      severity: "error",
+      operation: "revoke_admin_session",
+      requestId: requestIdFrom(request),
+      actionRequired: true,
+      retryable: true,
+      dedupeKey: "admin:session-revoke",
+    });
     return apiErrorResponse(error);
   }
 }

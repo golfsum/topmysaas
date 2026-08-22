@@ -24,7 +24,7 @@ const snapshot: LeaderboardSnapshot = {
   listings: Array.from({ length: 101 }, (_, index) => listing(index + 1)),
   settings: DEFAULT_BOARD_SETTINGS,
   weekId: "2026-08-17",
-  nextResetAt: "2026-08-24T00:00:00.000Z",
+  nextResetAt: "2026-08-31T00:00:00.000Z",
   generatedAt: "2026-08-22T12:00:00.000Z",
   source: "firestore",
 };
@@ -62,5 +62,24 @@ describe("public leaderboard page ranges", () => {
     expect(html).toContain("SaaS Rank 051");
     expect(html).toContain("SaaS Rank 100");
     expect(html).not.toContain("SaaS Rank 050");
+  });
+
+  it("searches the full snapshot while preserving a match's global rank", () => {
+    const html = renderToStaticMarkup(
+      <LaunchSoonHome
+        initialSnapshot={snapshot}
+        requestedPage={1}
+        searchQuery="SaaS Rank 101"
+      />,
+    );
+
+    expect(html).toContain("1 match");
+    expect(html).toContain("SaaS Rank 101");
+    expect(html).toContain("#101");
+    const leaderboardHtml = html.slice(
+      html.indexOf('<section id="leaderboard"'),
+      html.indexOf('<section id="how-it-works"'),
+    );
+    expect(leaderboardHtml).not.toContain("SaaS Rank 001");
   });
 });

@@ -28,6 +28,10 @@ export default function TermsPage() {
           <li>Your listing can be outbid at any time and may lose its rank immediately.</li>
           <li>The Top 5 board resets every Monday at 00:00 UTC. All rankings are cleared.</li>
           <li>
+            One-time launch exception: eligible pre-launch listings and their paid totals carry into the opening live
+            board on August 24, 2026. That opening board first resets on August 31, 2026 at 00:00 UTC.
+          </li>
+          <li>
             We reserve the right to remove any listing that is spam, misleading, adult, illegal, or violates these
             terms, without refund.
           </li>
@@ -61,8 +65,13 @@ export default function TermsPage() {
       <section>
         <h2>3. Weekly reset</h2>
         <p>
-          The active leaderboard resets every Monday at 00:00 UTC. Amounts paid during one board do not carry into the
-          next board. A prior listing must place a new bid to compete again after a reset.
+          The pre-launch board and its successfully paid totals continue into the opening live board on August 24,
+          2026. This is a one-time launch transition, not a clearing reset. The opening board resets on August 31, 2026
+          at 00:00 UTC.
+        </p>
+        <p className="mt-3">
+          Starting with that reset, the active leaderboard resets every Monday at 00:00 UTC. Amounts paid during one
+          board do not carry into the next board. A prior listing must place a new bid to compete again after a reset.
         </p>
       </section>
 

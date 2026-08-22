@@ -1,3 +1,10 @@
+import {
+  INITIAL_BOARD_START_AT,
+  INITIAL_LIVE_WEEK_END_AT,
+  INITIAL_PRELAUNCH_WEEK_ID,
+  isInitialExtendedBoardPeriod,
+} from "./launch";
+
 const DAY_MS = 24 * 60 * 60 * 1_000;
 
 export type WeekBounds = {
@@ -11,6 +18,14 @@ function formatUtcDate(date: Date): string {
 }
 
 export function getUtcWeekBounds(now = new Date()): WeekBounds {
+  if (isInitialExtendedBoardPeriod(now)) {
+    return {
+      weekId: INITIAL_PRELAUNCH_WEEK_ID,
+      startsAt: new Date(INITIAL_BOARD_START_AT),
+      nextResetAt: new Date(INITIAL_LIVE_WEEK_END_AT),
+    };
+  }
+
   const utcMidnight = Date.UTC(
     now.getUTCFullYear(),
     now.getUTCMonth(),

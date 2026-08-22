@@ -9,7 +9,12 @@ import {
 import { formatUsd } from "@/lib/domain/money";
 import type { AdminDashboardData } from "@/lib/domain/types";
 
-export type AdminView = "overview" | "listings" | "bids" | "settings";
+export type AdminView =
+  | "overview"
+  | "listings"
+  | "bids"
+  | "errors"
+  | "settings";
 
 type OverviewSectionProps = {
   dashboard: AdminDashboardData;

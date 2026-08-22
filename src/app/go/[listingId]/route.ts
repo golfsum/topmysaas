@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 
 import { isListingDocumentId } from "@/lib/domain/listing-links";
 import { recordPublicListingClick } from "@/lib/server/click-tracking";
+import {
+  recordErrorEvent,
+  requestIdFrom,
+} from "@/lib/server/error-events";
 
 export const dynamic = "force-dynamic";
 
@@ -30,8 +34,20 @@ export async function GET(
   try {
     const destination = await recordPublicListingClick(listingId);
     return temporaryRedirect(destination ?? new URL("/", request.url));
-  } catch (error) {
-    console.error("Unable to resolve outbound listing link", error);
+  } catch {
+    await recordErrorEvent({
+      category: "leaderboard",
+      severity: "error",
+      code: "LISTING_REDIRECT_FAILED",
+      operation: "resolve_outbound_listing_link",
+      message:
+        "A public listing link could not be resolved, so the visitor was returned to the board.",
+      actionRequired: true,
+      retryable: true,
+      listingId,
+      requestId: requestIdFrom(request),
+      dedupeKey: `listing-link:${listingId}:resolve-failed`,
+    });
     return temporaryRedirect(new URL("/", request.url));
   }
 }

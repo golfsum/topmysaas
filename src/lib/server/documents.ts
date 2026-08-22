@@ -2,6 +2,12 @@ import "server-only";
 
 import type { Timestamp } from "firebase-admin/firestore";
 
+import type {
+  SystemErrorCategory,
+  SystemErrorSeverity,
+  SystemErrorStatus,
+} from "@/lib/domain/types";
+
 export type ListingDocument = {
   name: string;
   url: string;
@@ -71,4 +77,35 @@ export type BidDocument = {
   stripeEventId: string;
   weekId: string;
   appliedToActiveBoard: boolean;
+};
+
+export type SystemErrorDocument = {
+  category: SystemErrorCategory;
+  severity: SystemErrorSeverity;
+  status: SystemErrorStatus;
+  code: string;
+  operation: string;
+  message: string;
+  actionRequired: boolean;
+  retryable: boolean;
+  occurrenceCount: number;
+  firstOccurredAt: Timestamp;
+  lastOccurredAt: Timestamp;
+  expiresAt: Timestamp;
+  environment: string;
+  httpStatus?: number;
+  requestId?: string;
+  weekId?: string;
+  listingId?: string;
+  bidIntentId?: string;
+  stripeLivemode?: boolean;
+  stripeEventId?: string;
+  stripeEventType?: string;
+  stripeSessionId?: string;
+  stripePaymentIntentId?: string;
+  stripeRequestId?: string;
+  stripeErrorType?: string;
+  stripeErrorCode?: string;
+  declineCode?: string;
+  resolvedAt?: Timestamp;
 };

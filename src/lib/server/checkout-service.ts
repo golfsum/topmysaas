@@ -12,6 +12,7 @@ import {
 import type Stripe from "stripe";
 
 import { checkoutClaimAction } from "@/lib/domain/checkout-claim";
+import { createStripeCheckoutCopy } from "@/lib/domain/stripe-checkout-copy";
 import { listingOwnershipMatches } from "@/lib/domain/listing-ownership";
 import { calculateChargeCents } from "@/lib/domain/money";
 import { removalBarrierAllowsIntent } from "@/lib/domain/removal-barrier";
@@ -44,8 +45,18 @@ import type {
   ListingDocument,
 } from "./documents";
 import { getAdminDb } from "./firebase-admin";
+import {
+  projectStripeError,
+  recordApiErrorEvent,
+  recordErrorEvent,
+  resolveErrorEventByDedupeKey,
+} from "./error-events";
 import { listingIdForUrl, listingTombstoneId } from "./listing-identity";
 import { getStripe } from "./stripe";
+import {
+  isTopMySaasStripeMetadata,
+  TOPMYSAAS_STRIPE_APP,
+} from "./stripe-metadata";
 
 type CheckoutCreationResult = CheckoutResponse & { ownerToken: string };
 
@@ -182,12 +193,24 @@ async function settleExistingCheckoutClaim(
   try {
     session = await getStripe().checkout.sessions.retrieve(sessionId);
   } catch (error) {
-    console.error("Unable to inspect the existing Checkout Session", error);
-    throw new ApiError(
+    if (error instanceof ApiError) throw error;
+    const apiError = new ApiError(
       502,
       "CHECKOUT_STATUS_UNAVAILABLE",
       "The previous checkout could not be checked. Try again in a moment.",
     );
+    await recordApiErrorEvent(apiError, {
+      category: "checkout",
+      severity: "error",
+      operation: "inspect_existing_checkout",
+      actionRequired: true,
+      retryable: true,
+      bidIntentId: intentId,
+      stripeSessionId: sessionId,
+      ...projectStripeError(error),
+      dedupeKey: `checkout:${sessionId}:status-unavailable`,
+    });
+    throw apiError;
   }
 
   if (session.metadata?.bidIntentId !== intentId) {
@@ -273,6 +296,7 @@ export async function createCheckout(
     );
   }
 
+  const baseUrl = appOrigin(requestOrigin);
   const db = getAdminDb();
   const intentId = randomUUID();
   const legacyTombstoneRemovalId = randomUUID();
@@ -521,12 +545,16 @@ export async function createCheckout(
     });
   };
 
-  const baseUrl = appOrigin(requestOrigin);
   const expiresInMs = nextResetAt.getTime() - now.getTime();
   const canExpireAtReset =
     expiresInMs >= 30 * 60_000 && expiresInMs <= 24 * 60 * 60_000;
 
   let session: Stripe.Checkout.Session;
+  const checkoutCopy = createStripeCheckoutCopy(
+    input.name,
+    input.targetTotalCents,
+    prepared.amountDueCents,
+  );
   try {
     session = await getStripe().checkout.sessions.create(
       {
@@ -536,9 +564,21 @@ export async function createCheckout(
         managed_payments: { enabled: false },
         client_reference_id: intentId,
         metadata: {
+          topmysaasApp: TOPMYSAAS_STRIPE_APP,
           bidIntentId: intentId,
           listingId: prepared.listingId,
           weekId,
+        },
+        payment_intent_data: {
+          metadata: {
+            topmysaasApp: TOPMYSAAS_STRIPE_APP,
+            bidIntentId: intentId,
+            listingId: prepared.listingId,
+            weekId,
+          },
+        },
+        custom_text: {
+          submit: { message: checkoutCopy.submitMessage },
         },
         line_items: [
           {
@@ -547,10 +587,8 @@ export async function createCheckout(
               currency: settings.currency,
               unit_amount: prepared.amountDueCents,
               product_data: {
-                name: `TopMySaaS weekly bid for ${input.name}`,
-                description: `New target total: $${(
-                  input.targetTotalCents / 100
-                ).toFixed(2)}`,
+                name: checkoutCopy.productName,
+                description: checkoutCopy.description,
               },
             },
           },
@@ -564,30 +602,109 @@ export async function createCheckout(
       { idempotencyKey: `bid-intent:${intentId}` },
     );
   } catch (error) {
-    await releaseClaim().catch((claimError) =>
-      console.error("Unable to release failed listing claim", claimError),
-    );
+    await releaseClaim().catch(async (claimError) => {
+      await recordErrorEvent({
+        category: "checkout",
+        severity: "warning",
+        code: "CHECKOUT_CLAIM_CLEANUP_FAILED",
+        operation: "release_failed_checkout_claim",
+        message:
+          "A listing reservation could not be released after Stripe Checkout failed.",
+        actionRequired: true,
+        retryable: true,
+        bidIntentId: intentId,
+        listingId: prepared.listingId,
+        weekId,
+        ...projectStripeError(claimError),
+        dedupeKey: `checkout:${intentId}:claim-cleanup`,
+      });
+    });
     await intentRef
       .update({
         status: "failed",
         failureMessage: "Stripe Checkout could not be created.",
         updatedAt: Timestamp.now(),
       })
-      .catch((updateError) =>
-        console.error("Unable to mark failed bid intent", updateError),
-      );
-    console.error("Unable to create Stripe Checkout Session", error);
-    throw new ApiError(
+      .catch(async () => {
+        await recordErrorEvent({
+          category: "checkout",
+          severity: "error",
+          code: "FAILED_BID_INTENT_UPDATE_FAILED",
+          operation: "mark_bid_intent_failed",
+          message:
+            "The failed Checkout attempt could not be marked failed in Firestore.",
+          actionRequired: true,
+          retryable: true,
+          bidIntentId: intentId,
+          listingId: prepared.listingId,
+          weekId,
+          dedupeKey: `checkout:${intentId}:failed-intent-update`,
+        });
+      });
+    if (error instanceof ApiError) throw error;
+    const apiError = new ApiError(
       502,
       "CHECKOUT_CREATE_FAILED",
       "Checkout could not be started. No payment was taken.",
     );
+    await recordApiErrorEvent(apiError, {
+      category: "checkout",
+      severity: "error",
+      operation: "create_stripe_checkout_session",
+      actionRequired: true,
+      retryable: true,
+      bidIntentId: intentId,
+      listingId: prepared.listingId,
+      weekId,
+      ...projectStripeError(error),
+      dedupeKey: `checkout:${intentId}:stripe-create`,
+    });
+    throw apiError;
   }
 
   if (!session.url) {
-    await releaseClaim().catch((claimError) =>
-      console.error("Unable to release listing claim without a URL", claimError),
-    );
+    await releaseClaim().catch(async () => {
+      await recordErrorEvent({
+        category: "checkout",
+        severity: "warning",
+        code: "CHECKOUT_CLAIM_CLEANUP_FAILED",
+        operation: "release_checkout_claim_without_url",
+        message:
+          "A listing reservation could not be released after Stripe omitted its Checkout URL.",
+        actionRequired: true,
+        retryable: true,
+        bidIntentId: intentId,
+        listingId: prepared.listingId,
+        weekId,
+        stripeSessionId: session.id,
+        stripeLivemode: session.livemode,
+        dedupeKey: `checkout:${intentId}:missing-url-claim-cleanup`,
+      });
+    });
+    await intentRef
+      .update({
+        status: "failed",
+        failureMessage: "Stripe Checkout did not return a Checkout URL.",
+        updatedAt: Timestamp.now(),
+      })
+      .catch(async () => {
+        await recordErrorEvent({
+          category: "checkout",
+          severity: "error",
+          code: "FAILED_BID_INTENT_UPDATE_FAILED",
+          operation: "mark_missing_url_intent_failed",
+          message:
+            "The Checkout attempt without a URL could not be marked failed in Firestore.",
+          actionRequired: true,
+          retryable: true,
+          bidIntentId: intentId,
+          listingId: prepared.listingId,
+          weekId,
+          stripeSessionId: session.id,
+          stripeLivemode: session.livemode,
+          dedupeKey: `checkout:${intentId}:missing-url-intent-update`,
+        });
+      });
     throw new ApiError(
       502,
       "CHECKOUT_URL_MISSING",
@@ -626,7 +743,23 @@ export async function createCheckout(
     });
   } catch (error) {
     // The signed webhook can recover from metadata even if this convenience write fails.
-    console.error("Unable to persist Checkout Session mapping", error);
+    await recordErrorEvent({
+      category: "checkout",
+      severity: "warning",
+      code: "CHECKOUT_MAPPING_WRITE_FAILED",
+      operation: "persist_checkout_session_mapping",
+      message:
+        "Stripe Checkout opened, but its Firestore session mapping could not be saved. The signed webhook can still recover it.",
+      actionRequired: true,
+      retryable: true,
+      bidIntentId: intentId,
+      listingId: prepared.listingId,
+      weekId,
+      stripeSessionId: session.id,
+      stripeLivemode: session.livemode,
+      ...projectStripeError(error),
+      dedupeKey: `checkout:${session.id}:mapping-write`,
+    });
   }
 
   return {
@@ -716,6 +849,8 @@ export async function fulfillCheckoutSession(
       ? (listingSnapshot.data() as ListingDocument)
       : undefined;
     const currentBoardGeneration = parseBoardGeneration(stateSnapshot.data());
+    const activeWeekId = getUtcWeekBounds(fulfilledAt.toDate()).weekId;
+    const intentTargetsActiveBoard = intent.weekId === activeWeekId;
     const sameBoard =
       existing?.weekId === intent.weekId &&
       Number(existing.boardGeneration ?? 0) === intent.boardGeneration;
@@ -725,6 +860,7 @@ export async function fulfillCheckoutSession(
       intent.acceptedRemovalId,
     );
     const boardAcceptsPayment =
+      intentTargetsActiveBoard &&
       currentBoardGeneration === intent.boardGeneration &&
       removalAllowsPayment;
     const startsNewPeriodNow =
@@ -746,6 +882,7 @@ export async function fulfillCheckoutSession(
 
     let listing: ListingDocument | undefined;
     if (
+      intentTargetsActiveBoard &&
       ownershipMatches &&
       removalAllowsPayment &&
       (boardAcceptsPayment || sameBoard || !existing)
@@ -878,10 +1015,22 @@ function isCheckoutSessionId(value: string): boolean {
   return /^cs_(?:test_|live_)?[A-Za-z0-9]+$/.test(value);
 }
 
+function isMissingStripeResource(error: unknown): boolean {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "code" in error &&
+      error.code === "resource_missing",
+  );
+}
+
 async function fulfilledStatus(
   listingId: string,
   sessionId: string,
 ): Promise<BidStatusResponse> {
+  await resolveErrorEventByDedupeKey(
+    `payment:${sessionId}:confirmation-delayed`,
+  );
   const bidSnapshot = await getAdminDb().collection("bids").doc(sessionId).get();
   const appliedToActiveBoard = bidSnapshot.exists
     ? bidSnapshot.get("appliedToActiveBoard") !== false
@@ -939,8 +1088,31 @@ export async function getBidStatus(sessionId: string): Promise<BidStatusResponse
   let stripeSession: Stripe.Checkout.Session;
   try {
     stripeSession = await getStripe().checkout.sessions.retrieve(sessionId);
-  } catch {
-    throw new ApiError(404, "SESSION_NOT_FOUND", "Checkout Session not found.");
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    if (isMissingStripeResource(error)) {
+      throw new ApiError(
+        404,
+        "SESSION_NOT_FOUND",
+        "Checkout Session not found.",
+      );
+    }
+    const apiError = new ApiError(
+      502,
+      "STRIPE_STATUS_UNAVAILABLE",
+      "Stripe payment status could not be checked. Try again in a moment.",
+    );
+    await recordApiErrorEvent(apiError, {
+      category: "payment",
+      severity: "error",
+      operation: "retrieve_checkout_status_from_stripe",
+      actionRequired: true,
+      retryable: true,
+      stripeSessionId: sessionId,
+      ...projectStripeError(error),
+      dedupeKey: "bid-status:STRIPE_STATUS_UNAVAILABLE",
+    });
+    throw apiError;
   }
 
   if (stripeSession.status === "expired") {
@@ -950,6 +1122,28 @@ export async function getBidStatus(sessionId: string): Promise<BidStatusResponse
     };
   }
   if (stripeSession.payment_status === "paid") {
+    if (
+      isTopMySaasStripeMetadata(stripeSession.metadata) &&
+      Date.now() - stripeSession.created * 1_000 >= 30_000
+    ) {
+      await recordErrorEvent({
+        category: "webhook",
+        severity: "critical",
+        code: "PAYMENT_CONFIRMATION_DELAYED",
+        operation: "wait_for_paid_checkout_fulfillment",
+        message:
+          "Stripe confirms payment, but signed webhook fulfillment has not updated the board within 30 seconds.",
+        actionRequired: true,
+        retryable: true,
+        stripeLivemode: stripeSession.livemode,
+        stripeSessionId: stripeSession.id,
+        bidIntentId: stripeSession.metadata?.bidIntentId,
+        listingId: stripeSession.metadata?.listingId,
+        weekId: stripeSession.metadata?.weekId,
+        dedupeKey: `payment:${sessionId}:confirmation-delayed`,
+        recordOnce: true,
+      });
+    }
     return {
       status: "pending",
       message: "Payment is confirmed and the signed webhook is updating the board.",

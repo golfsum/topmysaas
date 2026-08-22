@@ -14,5 +14,11 @@ describe("Stripe Checkout compatibility", () => {
     expect(checkoutServiceSource).toMatch(
       /managed_payments:\s*{\s*enabled:\s*false\s*}/,
     );
+    expect(checkoutServiceSource).toMatch(
+      /unit_amount:\s*prepared\.amountDueCents/,
+    );
+    expect(checkoutServiceSource).toMatch(
+      /custom_text:\s*{\s*submit:\s*{\s*message:\s*checkoutCopy\.submitMessage/,
+    );
   });
 });

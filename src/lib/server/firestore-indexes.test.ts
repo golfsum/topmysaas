@@ -14,9 +14,15 @@ type FirestoreIndex = {
   fields: IndexField[];
 };
 
+type FieldOverride = {
+  collectionGroup: string;
+  fieldPath: string;
+  ttl?: boolean;
+};
+
 const indexConfig = JSON.parse(
   readFileSync(join(process.cwd(), "firestore.indexes.json"), "utf8"),
-) as { indexes: FirestoreIndex[] };
+) as { indexes: FirestoreIndex[]; fieldOverrides: FieldOverride[] };
 
 function includesIndex(collectionGroup: string, fields: IndexField[]): boolean {
   return indexConfig.indexes.some(
@@ -58,5 +64,15 @@ describe("Firestore composite indexes", () => {
         { fieldPath: "amountCents", order: "ASCENDING" },
       ]),
     ).toBe(true);
+  });
+
+  it("expires sanitized operational errors after their retention window", () => {
+    expect(indexConfig.fieldOverrides).toContainEqual(
+      expect.objectContaining({
+        collectionGroup: "errorEvents",
+        fieldPath: "expiresAt",
+        ttl: true,
+      }),
+    );
   });
 });

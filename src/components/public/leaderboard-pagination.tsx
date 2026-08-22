@@ -7,6 +7,7 @@ type LeaderboardPaginationProps = {
   totalListings: number;
   startRank: number;
   endRank: number;
+  searchQuery?: string;
 };
 
 type PageItem = number | `ellipsis-${string}`;
@@ -14,8 +15,12 @@ type PageItem = number | `ellipsis-${string}`;
 const LINK_CLASS =
   "inline-flex h-11 min-w-11 items-center justify-center rounded-lg border px-3 text-sm font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#67e85f]";
 
-function pageHref(page: number): string {
-  return page === 1 ? "/#leaderboard" : `/?page=${page}#leaderboard`;
+function pageHref(page: number, searchQuery: string): string {
+  const parameters = new URLSearchParams();
+  if (searchQuery) parameters.set("q", searchQuery);
+  if (page > 1) parameters.set("page", String(page));
+  const query = parameters.toString();
+  return `/${query ? `?${query}` : ""}#leaderboard`;
 }
 
 function visiblePageItems(currentPage: number, totalPages: number): PageItem[] {
@@ -45,6 +50,7 @@ export function LeaderboardPagination({
   totalListings,
   startRank,
   endRank,
+  searchQuery = "",
 }: LeaderboardPaginationProps) {
   if (totalPages <= 1) return null;
 
@@ -54,9 +60,9 @@ export function LeaderboardPagination({
       className="mt-5 flex flex-col gap-4 rounded-xl border border-white/[0.08] bg-white/[0.025] p-4 sm:flex-row sm:items-center sm:justify-between"
     >
       <p className="text-sm text-[#aab2ba]">
-        Showing ranks{" "}
+        {searchQuery ? "Showing matches" : "Showing ranks"}{" "}
         <span className="font-semibold text-white">
-          #{startRank}–#{endRank}
+          {searchQuery ? `${startRank}–${endRank}` : `#${startRank}–#${endRank}`}
         </span>{" "}
         of {totalListings.toLocaleString("en-US")}
       </p>
@@ -64,7 +70,7 @@ export function LeaderboardPagination({
       <div className="flex flex-wrap items-center gap-1.5">
         {currentPage > 1 ? (
           <Link
-            href={pageHref(currentPage - 1)}
+            href={pageHref(currentPage - 1, searchQuery)}
             prefetch={false}
             aria-label={`Go to leaderboard page ${currentPage - 1}`}
             className={`${LINK_CLASS} border-white/10 bg-white/[0.035] text-[#c8ced3] hover:border-white/20 hover:bg-white/[0.07] hover:text-white`}
@@ -96,7 +102,7 @@ export function LeaderboardPagination({
             ) : (
               <Link
                 key={item}
-                href={pageHref(item)}
+                href={pageHref(item, searchQuery)}
                 prefetch={false}
                 aria-label={`Go to leaderboard page ${item}`}
                 className={`${LINK_CLASS} border-white/10 bg-white/[0.035] text-[#c8ced3] hover:border-[#67e85f]/25 hover:bg-[#67e85f]/8 hover:text-[#83f27c]`}
@@ -117,7 +123,7 @@ export function LeaderboardPagination({
 
         {currentPage < totalPages ? (
           <Link
-            href={pageHref(currentPage + 1)}
+            href={pageHref(currentPage + 1, searchQuery)}
             prefetch={false}
             aria-label={`Go to leaderboard page ${currentPage + 1}`}
             className={`${LINK_CLASS} border-white/10 bg-white/[0.035] text-[#c8ced3] hover:border-white/20 hover:bg-white/[0.07] hover:text-white`}

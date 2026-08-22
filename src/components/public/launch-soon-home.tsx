@@ -6,14 +6,19 @@ import {
   type LeaderboardSnapshot,
   type PublicListing,
 } from "@/lib/domain/types";
+import {
+  INITIAL_BOARD_START_AT,
+  INITIAL_LAUNCH_AT,
+} from "@/lib/domain/launch";
 import { paginateLeaderboard } from "@/lib/domain/leaderboard-pagination";
 import { listingVisitPath } from "@/lib/domain/listing-links";
+import { dollarsToCents } from "@/lib/domain/money";
+import { searchRankedListings } from "@/lib/domain/listing-search";
 import {
   ArrowDown,
   ArrowUpRight,
   Bolt,
   Check,
-  Clock3,
   ExternalLink,
   Gavel,
   LockKeyhole,
@@ -23,10 +28,18 @@ import {
   Sparkles,
   TriangleAlert,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { BidDialog, type BidTarget } from "./bid-dialog";
-import { Countdown } from "./countdown";
+import { LaunchCountdown } from "./launch-countdown";
 import { LeaderboardPagination } from "./leaderboard-pagination";
+import { ListingIcon } from "./listing-icon";
+import { ListingSearchForm } from "./listing-search-form";
 import { LowerRankings } from "./lower-rankings";
 import { SiteFooter } from "./site-footer";
 import { SiteHeader } from "./site-header";
@@ -37,6 +50,9 @@ type LaunchSoonHomeProps = {
   initialSnapshot?: LeaderboardSnapshot | null;
   checkoutCancelled?: boolean;
   requestedPage?: number;
+  searchQuery?: string;
+  launchAt?: string;
+  serverNow?: string;
 };
 
 const launchRules = [
@@ -44,7 +60,8 @@ const launchRules = [
   "Rank is based only on successfully paid bid totals.",
   "A higher total can move any listing down immediately.",
   "On the original secure device, rebids charge only the difference.",
-  "The board resets every Monday at 00:00 UTC.",
+  "Pre-launch listings and paid totals carry into the opening live board.",
+  "After launch week, the board resets every Monday at 00:00 UTC.",
   "Spam, adult, illegal, or misleading listings are removed without refund.",
 ] as const;
 
@@ -96,17 +113,17 @@ function displayDomain(value: string) {
   }
 }
 
-function initials(name: string) {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length === 0) return "S";
-  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
-  return `${words[0][0]}${words[1][0]}`.toUpperCase();
+function inputMoney(cents: number) {
+  return (cents / 100).toFixed(cents % 100 === 0 ? 0 : 2);
 }
 
 export function LaunchSoonHome({
   initialSnapshot = null,
   checkoutCancelled = false,
   requestedPage = 1,
+  searchQuery = "",
+  launchAt = INITIAL_LAUNCH_AT,
+  serverNow,
 }: LaunchSoonHomeProps) {
   const initialUsableSnapshot =
     initialSnapshot?.source === "unavailable" ? null : initialSnapshot;
@@ -122,6 +139,15 @@ export function LaunchSoonHome({
         : "loading",
   );
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [heroBidAmount, setHeroBidAmount] = useState(() =>
+    inputMoney(
+      minimumForSpot(
+        initialSnapshot?.listings[0],
+        initialSnapshot?.settings ?? DEFAULT_BOARD_SETTINGS,
+      ),
+    ),
+  );
+  const [heroBidError, setHeroBidError] = useState<string | null>(null);
   const [showCheckoutCancelled, setShowCheckoutCancelled] =
     useState(checkoutCancelled);
   const [bidTarget, setBidTarget] = useState<BidTarget>({
@@ -168,16 +194,24 @@ export function LaunchSoonHome({
 
   const settings = snapshot?.settings ?? DEFAULT_BOARD_SETTINGS;
   const allListings = snapshot?.listings ?? [];
-  const leaderboardPage = paginateLeaderboard(allListings, requestedPage);
+  const searchActive = searchQuery.length > 0;
+  const searchedListings = searchRankedListings(allListings, searchQuery);
+  const leaderboardPage = paginateLeaderboard(searchedListings, requestedPage);
   const listings = allListings.slice(0, 5);
-  const showHighlightedRankings = leaderboardPage.currentPage === 1;
-  const lowerListings = showHighlightedRankings
+  const showHighlightedRankings =
+    !searchActive && leaderboardPage.currentPage === 1;
+  const lowerRankedListings = showHighlightedRankings
     ? leaderboardPage.listings.slice(5)
     : leaderboardPage.listings;
-  const lowerStartRank = showHighlightedRankings
-    ? 6
-    : leaderboardPage.startRank;
   const topListing = listings[0];
+  const topSpotTotalCents = minimumForSpot(topListing, settings);
+  const enteredHeroBidCents = dollarsToCents(heroBidAmount);
+  const estimatedNewListingRank =
+    enteredHeroBidCents && enteredHeroBidCents >= settings.minBidCents
+      ? allListings.filter(
+          (listing) => listing.bidAmountCents >= enteredHeroBidCents,
+        ).length + 1
+      : null;
   const trackClicks = snapshot?.source === "firestore";
   const topListingSafeUrl = topListing
     ? safeListingUrl(topListing.url)
@@ -222,14 +256,32 @@ export function LaunchSoonHome({
     snapshot?.source === "demo" ||
     biddingPaused;
 
-  const openBid = (rank?: number) => {
+  const openBid = (rank?: number, initialTotalCents?: number) => {
     if (!snapshot || !biddingEnabled) return;
     const listing = rank ? allListings[rank - 1] : undefined;
     setBidTarget({
       rank,
-      minimumTotalCents: minimumForSpot(listing, settings),
+      minimumTotalCents: rank
+        ? minimumForSpot(listing, settings)
+        : settings.minBidCents,
+      ...(initialTotalCents ? { initialTotalCents } : {}),
     });
     setDialogOpen(true);
+  };
+
+  const handleHeroBid = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setHeroBidError(null);
+
+    const targetTotalCents = dollarsToCents(heroBidAmount);
+    if (!targetTotalCents || targetTotalCents < settings.minBidCents) {
+      setHeroBidError(
+        `Enter a weekly total of at least ${formatMoney(settings.minBidCents)}.`,
+      );
+      return;
+    }
+
+    openBid(undefined, targetTotalCents);
   };
 
   return (
@@ -280,28 +332,86 @@ export function LaunchSoonHome({
               </h1>
               <p className="mt-5 max-w-xl text-base leading-7 text-[#aab2ba] sm:text-lg sm:leading-8">
                 The full leaderboard is almost ready. Bidding is open now, and
-                every successful payment enters this week&apos;s live ranking.
+                every successful payment enters the opening live ranking.
               </p>
 
-              <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center">
-                <button
-                  type="button"
-                  onClick={() => openBid()}
-                  disabled={!biddingEnabled}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#67e85f] px-6 text-[15px] font-bold text-[#071006] shadow-[0_0_32px_rgba(103,232,95,0.16)] transition-colors hover:bg-[#78f271] active:bg-[#52ce4c] disabled:cursor-not-allowed disabled:bg-[#36453a] disabled:text-[#89948b]"
+              <div className="mt-7">
+                <LaunchCountdown
+                  launchAt={launchAt}
+                  serverNow={
+                    serverNow ??
+                    initialSnapshot?.generatedAt ??
+                    INITIAL_BOARD_START_AT
+                  }
+                />
+              </div>
+
+              <div className="mt-5 flex flex-col gap-3">
+                <form
+                  onSubmit={handleHeroBid}
+                  className="flex max-w-xl flex-col gap-2 rounded-xl border border-white/10 bg-white/[0.035] p-2.5 sm:flex-row sm:items-center"
                 >
-                  <Gavel aria-hidden="true" size={17} strokeWidth={2.5} />
-                  {biddingEnabled
-                    ? `Place a launch bid from ${formatMoney(settings.minBidCents)}`
-                    : disabledBidLabel}
-                </button>
+                  <label
+                    htmlFor="launch-hero-bid"
+                    className="shrink-0 px-1 text-sm font-bold text-white sm:pl-2"
+                  >
+                    Take #1 for
+                  </label>
+                  <span className="relative min-w-0 flex-1">
+                    <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-[#aab2ba]">
+                      $
+                    </span>
+                    <input
+                      id="launch-hero-bid"
+                      type="number"
+                      inputMode="decimal"
+                      min={settings.minBidCents / 100}
+                      max="999999.99"
+                      step="0.01"
+                      required
+                      value={heroBidAmount}
+                      disabled={!biddingEnabled}
+                      onChange={(event) => {
+                        setHeroBidAmount(event.target.value);
+                        if (heroBidError) setHeroBidError(null);
+                      }}
+                      aria-describedby="launch-hero-bid-help"
+                      className="tabular-nums h-11 w-full rounded-lg border border-white/10 bg-[#090c0f] pl-7 pr-3 text-base font-bold text-white transition-colors hover:border-white/20 focus:border-[#67e85f]/60 focus:outline-none disabled:cursor-not-allowed disabled:text-[#89948b]"
+                    />
+                  </span>
+                  <button
+                    type="submit"
+                    disabled={!biddingEnabled}
+                    className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#67e85f] px-5 text-sm font-bold text-[#071006] shadow-[0_0_32px_rgba(103,232,95,0.16)] transition-colors hover:bg-[#78f271] active:bg-[#52ce4c] disabled:cursor-not-allowed disabled:bg-[#36453a] disabled:text-[#89948b]"
+                  >
+                    <Gavel aria-hidden="true" size={16} strokeWidth={2.5} />
+                    {biddingEnabled ? "Claim" : disabledBidLabel}
+                  </button>
+                </form>
+                <div className="flex max-w-xl flex-col gap-2 text-xs leading-5 text-[#8f98a1] sm:flex-row sm:items-center sm:justify-between">
+                  <p id="launch-hero-bid-help">
+                    {estimatedNewListingRank
+                      ? `Estimated new-listing rank: #${estimatedNewListingRank}. `
+                      : ""}
+                    {formatMoney(topSpotTotalCents)} is the current #1 target.
+                    Lower totals enter at their actual rank.
+                  </p>
                 <a
                   href="#leaderboard"
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/[0.035] px-5 text-sm font-bold text-[#dce1e5] transition-colors hover:border-white/20 hover:bg-white/[0.065] hover:text-white"
+                    className="inline-flex shrink-0 items-center gap-1.5 font-bold text-[#dce1e5] underline decoration-white/20 underline-offset-4 hover:text-white hover:decoration-white/50"
                 >
                   See current bids
-                  <ArrowDown aria-hidden="true" size={16} />
+                    <ArrowDown aria-hidden="true" size={13} />
                 </a>
+                </div>
+                {heroBidError ? (
+                  <p
+                    role="alert"
+                    className="max-w-xl rounded-lg border border-red-400/25 bg-red-400/[0.08] px-3.5 py-2.5 text-sm text-red-200"
+                  >
+                    {heroBidError}
+                  </p>
+                ) : null}
               </div>
 
               <p className="mt-4 flex max-w-xl items-start gap-2 text-xs leading-5 text-[#8f98a1]">
@@ -354,9 +464,9 @@ export function LaunchSoonHome({
                     The first five are forming now
                   </h2>
                 </div>
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1.5 text-[11px] text-[#aab2ba]">
-                  <Clock3 aria-hidden="true" size={12} />
-                  Resets in <Countdown nextResetAt={resetAt} />
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#67e85f]/20 bg-[#67e85f]/[0.06] px-2.5 py-1.5 text-[11px] text-[#9bf696]">
+                  <Rocket aria-hidden="true" size={12} />
+                  Carries into the live board
                 </span>
               </div>
 
@@ -386,24 +496,24 @@ export function LaunchSoonHome({
                   <div className="mt-4 h-14 w-full rounded-xl bg-white/[0.06]" />
                 </div>
               ) : topListing ? (
-                <div className="pt-6">
+                <div className="listing-row pt-6">
                   <p className="text-[11px] font-bold uppercase tracking-[0.13em] text-[#aab2ba]">
                     Current launch leader
                   </p>
                   <div className="mt-3 flex items-center gap-4">
-                    <span
-                      aria-hidden="true"
-                      className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-[#67e85f]/30 bg-[#67e85f]/10 text-lg font-extrabold tracking-[-0.04em] text-[#83f27c]"
-                    >
-                      {initials(topListing.name)}
-                    </span>
+                    <ListingIcon
+                      name={topListing.name}
+                      url={topListing.url}
+                      highlighted
+                      size="hero"
+                    />
                     {topListingHref ? (
                       <a
                         href={topListingHref}
                         target="_blank"
                         rel="sponsored nofollow noopener noreferrer"
                         aria-label={`Visit ${topListing.name}, opens in a new tab`}
-                        className="group min-w-0 flex-1 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#67e85f]"
+                        className="listing-row-link group min-w-0 flex-1 rounded-sm"
                       >
                         <p className="truncate text-lg font-bold tracking-[-0.025em] transition-colors group-hover:text-[#83f27c]">
                           {topListing.name}
@@ -443,11 +553,11 @@ export function LaunchSoonHome({
                     type="button"
                     onClick={() => openBid(1)}
                     disabled={!biddingEnabled}
-                    className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#67e85f] px-5 text-sm font-bold text-[#071006] transition-colors hover:bg-[#78f271] active:bg-[#52ce4c] disabled:cursor-not-allowed disabled:bg-[#36453a] disabled:text-[#89948b]"
+                    className="listing-claim-control mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#67e85f] px-5 text-sm font-bold text-[#071006] transition-colors hover:bg-[#78f271] active:bg-[#52ce4c] disabled:cursor-not-allowed disabled:bg-[#36453a] disabled:text-[#89948b]"
                   >
                     <Gavel aria-hidden="true" size={17} strokeWidth={2.5} />
                     {biddingEnabled
-                      ? `Take #1 for ${formatMoney(minimumForSpot(topListing, settings))}`
+                      ? `Claim this spot for ${formatMoney(minimumForSpot(topListing, settings))}`
                       : disabledBidLabel}
                   </button>
                 </div>
@@ -534,6 +644,20 @@ export function LaunchSoonHome({
               ) : null}
             </div>
 
+            <ListingSearchForm
+              query={searchQuery}
+              resultCount={searchedListings.length}
+            />
+
+            {searchActive && leaderboardPage.listings.length === 0 ? (
+              <div className="mt-6 rounded-xl border border-white/[0.08] bg-[#0a0d10] px-5 py-10 text-center">
+                <p className="text-base font-bold text-white">No matching company found</p>
+                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#8f98a1]">
+                  Try the company name, its domain, or a word from its description.
+                </p>
+              </div>
+            ) : null}
+
             {showHighlightedRankings ? (
               <ol className="mt-7 overflow-hidden rounded-2xl border border-white/10 bg-[#0d1013]">
               {Array.from({ length: 5 }, (_, index) => {
@@ -546,11 +670,12 @@ export function LaunchSoonHome({
                       ? listingVisitPath(listing.id)
                       : safeUrl
                     : null;
+                const minimum = minimumForSpot(listing, settings);
 
                 return (
                   <li
                     key={listing?.id ?? `open-${rank}`}
-                    className={`grid min-h-[76px] grid-cols-[46px_1fr_auto] items-center gap-3 px-4 py-3.5 sm:grid-cols-[58px_1fr_150px] sm:px-5 ${
+                    className={`listing-row grid min-h-[76px] grid-cols-[46px_1fr_auto] items-center gap-3 px-4 py-3.5 transition-colors hover:bg-white/[0.025] sm:grid-cols-[58px_minmax(0,1fr)_130px_210px] sm:px-5 ${
                       index > 0 ? "border-t border-white/[0.07]" : ""
                     }`}
                   >
@@ -564,13 +689,19 @@ export function LaunchSoonHome({
                     {listing ? (
                       <div className="min-w-0">
                         <div className="flex min-w-0 items-center gap-2">
+                          <ListingIcon
+                            name={listing.name}
+                            url={listing.url}
+                            highlighted={rank === 1}
+                            size="small"
+                          />
                           {listingHref ? (
                             <a
                               href={listingHref}
                               target="_blank"
                               rel="sponsored nofollow noopener noreferrer"
                               aria-label={`Visit ${listing.name}, opens in a new tab`}
-                              className="group inline-flex min-h-11 max-w-full items-center gap-2 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#67e85f]"
+                              className="listing-row-link group inline-flex min-h-11 max-w-full items-center gap-2 rounded-sm"
                             >
                               <span className="truncate text-[15px] font-bold text-white transition-colors group-hover:text-[#83f27c] sm:text-base">
                                 {listing.name}
@@ -615,6 +746,26 @@ export function LaunchSoonHome({
                         {listing ? "current total" : "starting bid"}
                       </p>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => openBid(rank)}
+                      disabled={!biddingEnabled}
+                      aria-label={
+                        biddingEnabled
+                          ? `Claim rank ${rank} for ${formatMoney(minimum)}`
+                          : disabledBidLabel
+                      }
+                      className="listing-claim-control listing-claim-reveal col-span-3 inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-[#67e85f]/25 bg-[#67e85f]/10 px-3 text-xs font-bold text-[#83f27c] transition-[color,background-color,border-color,opacity,transform] hover:border-[#67e85f]/45 hover:bg-[#67e85f]/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#67e85f] disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.035] disabled:text-[#747e87] sm:col-auto"
+                    >
+                      {biddingEnabled
+                        ? (
+                            <span className="whitespace-nowrap">
+                              Claim this spot for {formatMoney(minimum)}
+                            </span>
+                          )
+                        : disabledBidLabel}
+                      <ArrowUpRight aria-hidden="true" size={13} />
+                    </button>
                   </li>
                 );
               })}
@@ -622,13 +773,23 @@ export function LaunchSoonHome({
             ) : null}
 
             <LowerRankings
-              listings={lowerListings}
-              startRank={lowerStartRank}
+              rankedListings={lowerRankedListings}
               settings={settings}
               biddingEnabled={biddingEnabled}
               disabledBidLabel={disabledBidLabel}
               trackClicks={trackClicks}
               onBid={openBid}
+              heading={searchActive ? "Search results" : undefined}
+              description={
+                searchActive
+                  ? "Matching companies are shown with their true current leaderboard rank."
+                  : undefined
+              }
+              rangeLabel={
+                searchActive
+                  ? `Matches ${leaderboardPage.startRank}–${leaderboardPage.endRank}`
+                  : undefined
+              }
             />
 
             <LeaderboardPagination
@@ -637,6 +798,7 @@ export function LaunchSoonHome({
               totalListings={leaderboardPage.totalListings}
               startRank={leaderboardPage.startRank}
               endRank={leaderboardPage.endRank}
+              searchQuery={searchQuery}
             />
 
             <div className="mt-5 flex flex-col gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-4 sm:flex-row sm:items-center sm:justify-between">
@@ -758,7 +920,7 @@ export function LaunchSoonHome({
 
       {dialogOpen ? (
         <BidDialog
-          key={`${bidTarget.rank ?? "new"}-${bidTarget.minimumTotalCents}`}
+          key={`${bidTarget.rank ?? "new"}-${bidTarget.minimumTotalCents}-${bidTarget.initialTotalCents ?? "minimum"}`}
           open
           settings={settings}
           target={bidTarget}

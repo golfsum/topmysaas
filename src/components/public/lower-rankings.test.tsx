@@ -22,14 +22,13 @@ describe("lower rankings", () => {
   it("keeps ranks below the Top 5 visible and biddable", () => {
     const html = renderToStaticMarkup(
       <LowerRankings
-        listings={[
-          listing(6, 7_000),
-          listing(7, 6_500),
-          listing(8, 6_000),
-          listing(9, 5_500),
-          listing(10, 5_000),
+        rankedListings={[
+          { listing: listing(6, 7_000), rank: 6 },
+          { listing: listing(7, 6_500), rank: 7 },
+          { listing: listing(8, 6_000), rank: 8 },
+          { listing: listing(9, 5_500), rank: 9 },
+          { listing: listing(10, 5_000), rank: 10 },
         ]}
-        startRank={6}
         settings={DEFAULT_BOARD_SETTINGS}
         biddingEnabled
         disabledBidLabel="Bidding unavailable"
@@ -40,26 +39,32 @@ describe("lower rankings", () => {
 
     expect(html).toContain("#10");
     expect(html).toContain("Rank 10 SaaS");
-    expect(html).toContain("Bid for #10 from $51");
+    expect(html).toContain("Claim this spot for $51");
     expect(html).toContain('href="/go/rank-10"');
+    expect(html).toContain("listing-row-link");
+    expect(html).not.toContain("/api/favicon");
     expect(html).not.toContain('href="https://rank-10.example/"');
   });
 
-  it("keeps global rank numbers on later pages", () => {
+  it("keeps explicit global rank numbers on later or filtered pages", () => {
     const html = renderToStaticMarkup(
       <LowerRankings
-        listings={[listing(51, 4_900), listing(52, 4_800)]}
-        startRank={51}
+        rankedListings={[
+          { listing: listing(51, 4_900), rank: 51 },
+          { listing: listing(137, 4_800), rank: 137 },
+        ]}
         settings={DEFAULT_BOARD_SETTINGS}
         biddingEnabled
         disabledBidLabel="Bidding unavailable"
         trackClicks
         onBid={() => undefined}
+        rangeLabel="Matches 1–2"
       />,
     );
 
-    expect(html).toContain("Ranks #51–#52");
+    expect(html).toContain("Matches 1–2");
     expect(html).toContain("#51");
-    expect(html).toContain("Bid for #52 from $49");
+    expect(html).toContain("#137");
+    expect(html).toContain("Claim this spot for $49");
   });
 });

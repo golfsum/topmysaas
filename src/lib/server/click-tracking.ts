@@ -6,6 +6,7 @@ import { normalizeWebsiteUrl } from "@/lib/domain/url";
 import { getUtcWeekBounds } from "@/lib/domain/week";
 
 import { getBoardGeneration } from "./board-state";
+import { recordErrorEvent } from "./error-events";
 import { getAdminDb } from "./firebase-admin";
 import { boardPeriodId, listingIdForUrl } from "./listing-identity";
 
@@ -101,8 +102,20 @@ export async function recordPublicListingClick(
 
   try {
     await batch.commit();
-  } catch (error) {
-    console.error("Unable to record outbound listing click", error);
+  } catch {
+    await recordErrorEvent({
+      category: "firebase",
+      severity: "warning",
+      code: "LISTING_CLICK_WRITE_FAILED",
+      operation: "record_outbound_listing_click",
+      message:
+        "A listing opened successfully, but its click counters could not be updated.",
+      actionRequired: false,
+      retryable: true,
+      listingId,
+      weekId,
+      dedupeKey: `clicks:${periodId}:${listingId}:write-failed`,
+    });
   }
 
   return website.url;

@@ -3,12 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const serverMocks = vi.hoisted(() => ({
   getAdminDb: vi.fn(),
   getBoardGeneration: vi.fn(),
+  recordErrorEvent: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("server-only", () => ({}));
 vi.mock("./firebase-admin", () => ({ getAdminDb: serverMocks.getAdminDb }));
 vi.mock("./board-state", () => ({
   getBoardGeneration: serverMocks.getBoardGeneration,
+}));
+vi.mock("./error-events", () => ({
+  recordErrorEvent: serverMocks.recordErrorEvent,
 }));
 
 import { recordPublicListingClick } from "./click-tracking";
@@ -109,16 +113,15 @@ describe("outbound listing click tracking", () => {
       commit,
     );
     serverMocks.getAdminDb.mockReturnValue(db);
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await expect(
       recordPublicListingClick("clientplot-listing", now),
     ).resolves.toBe("https://clientplot.com");
-    expect(consoleError).toHaveBeenCalledWith(
-      "Unable to record outbound listing click",
-      expect.any(Error),
+    expect(serverMocks.recordErrorEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        code: "LISTING_CLICK_WRITE_FAILED",
+        listingId: "clientplot-listing",
+      }),
     );
-
-    consoleError.mockRestore();
   });
 });
