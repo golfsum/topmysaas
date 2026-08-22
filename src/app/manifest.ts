@@ -10,5 +10,19 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#07090b",
     theme_color: "#67e85f",
     categories: ["business", "marketing"],
+    icons: [
+      {
+        src: "/topmysaas-logo-192.png",
+        sizes: "192x192",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/topmysaas-logo.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "any",
+      },
+    ],
   };
 }

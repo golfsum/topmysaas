@@ -10,7 +10,7 @@ The primary content width is 1200 pixels, while the hero and board sit in a focu
 
 Typography uses Geist Sans and Geist Mono from the framework-managed font package. The display size scales from 38 pixels on phones to 56 pixels on wide screens. Buttons and fields keep a 44-pixel minimum target. Motion is limited to dialog entrance, live status, and short row updates, and is removed when reduced motion is requested.
 
-The logo is an original CSS bar mark. Product marks are deterministic monograms generated from text and a fixed accessible palette. No third-party visual assets are shipped.
+The TopMySaaS logo uses the user-supplied mountain-and-flag artwork, cropped and optimized for legibility at header and app-icon sizes. Product marks remain deterministic monograms generated from text and a fixed accessible palette. Green remains reserved for auction state and action semantics rather than being replaced by the logo gradient.
 
 ## Interaction rules
 

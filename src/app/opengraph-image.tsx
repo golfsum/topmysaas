@@ -1,8 +1,17 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import { ImageResponse } from "next/og";
 
 export const alt = "TopMySaaS weekly Top 5 leaderboard";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
+
+const logoData = await readFile(
+  join(process.cwd(), "public", "topmysaas-logo.png"),
+  "base64",
+);
+const logoSrc = `data:image/png;base64,${logoData}`;
 
 export default function OpenGraphImage() {
   return new ImageResponse(
@@ -20,26 +29,15 @@ export default function OpenGraphImage() {
       }}
     >
       <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "flex-end",
-            gap: 7,
-            height: 52,
-          }}
-        >
-          {[18, 28, 40, 52].map((height) => (
-            <div
-              key={height}
-              style={{
-                width: 11,
-                height,
-                background: "#67e85f",
-                borderRadius: 4,
-              }}
-            />
-          ))}
-        </div>
+        {/* next/image cannot render inside ImageResponse. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={logoSrc}
+          alt=""
+          width={70}
+          height={70}
+          style={{ borderRadius: 35 }}
+        />
         <div style={{ fontSize: 44, fontWeight: 760 }}>TopMySaaS</div>
       </div>
 

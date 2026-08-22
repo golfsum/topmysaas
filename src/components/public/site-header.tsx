@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Gavel, Menu, X } from "lucide-react";
 import { useState } from "react";
 
+import { BrandMark } from "@/components/brand-mark";
+
 type SiteHeaderProps = {
   isHome?: boolean;
   onPlaceBid?: () => void;
@@ -42,15 +44,10 @@ export function SiteHeader({ isHome = false, onPlaceBid, bidDisabled = false }: 
             className="group flex min-w-0 items-center gap-3 rounded-md"
             onClick={closeMenu}
           >
-            <span
-              aria-hidden="true"
-              className="flex h-9 w-9 shrink-0 items-end justify-center gap-[3px] rounded-lg border border-[#67e85f]/20 bg-[#67e85f]/10 px-1.5 pb-1.5"
-            >
-              <span className="h-2 w-1 rounded-sm bg-[#67e85f] transition-transform group-hover:-translate-y-0.5" />
-              <span className="h-3.5 w-1 rounded-sm bg-[#67e85f] transition-transform group-hover:-translate-y-0.5" />
-              <span className="h-5 w-1 rounded-sm bg-[#67e85f] transition-transform group-hover:-translate-y-0.5" />
-              <span className="h-6.5 w-1 rounded-sm bg-[#67e85f] transition-transform group-hover:-translate-y-0.5" />
-            </span>
+            <BrandMark
+              size={40}
+              className="h-10 w-10 transition-transform duration-200 group-hover:scale-[1.04]"
+            />
             <span className="min-w-0">
               <span className="block text-[17px] font-bold leading-5 tracking-[-0.02em] text-white">
                 TopMySaaS

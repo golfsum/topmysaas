@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { LockKeyhole } from "lucide-react";
 
+import { SUPPORT_EMAIL, SUPPORT_EMAIL_HREF } from "@/lib/site";
+
 export function SiteFooter() {
   return (
     <footer className="border-t border-white/10 bg-[#06080a]">
@@ -16,6 +18,9 @@ export function SiteFooter() {
           <Link href="/privacy" className="rounded-sm transition-colors hover:text-white">
             Privacy
           </Link>
+          <a href={SUPPORT_EMAIL_HREF} className="rounded-sm transition-colors hover:text-white">
+            Contact: {SUPPORT_EMAIL}
+          </a>
           <Link href="/admin" className="rounded-sm transition-colors hover:text-white">
             Admin
           </Link>

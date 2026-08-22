@@ -1,6 +1,6 @@
 # Visual validation map
 
-Last reviewed: 2026-08-21
+Last reviewed: 2026-08-22
 
 ## Observed states
 
@@ -17,6 +17,9 @@ Last reviewed: 2026-08-21
 | `/bid/success` | Missing session recovery | `mobile-bid-status-missing.png` |
 | `/admin/login` | Firebase configuration unavailable | `admin-login-desktop.png` |
 | `/terms`, `/privacy` | Desktop and mobile route content | Covered by both Playwright projects |
+| `/` | Updated TopMySaaS logo at desktop and mobile header sizes | `logo-desktop-2026-08-22.png`, `logo-mobile-2026-08-22.png` |
+| `/admin/login` | Updated logo in the admin wordmark | `logo-admin-2026-08-22.png` |
+| `/opengraph-image` | Updated logo in the social sharing card | `opengraph-logo-2026-08-22.png` |
 
 All image names above are stored in:
 

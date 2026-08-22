@@ -20,7 +20,7 @@ export function LegalPage({ eyebrow, title, intro, children }: LegalPageProps) {
             <h1 className="mt-3 text-[38px] font-extrabold leading-tight tracking-[-0.045em] sm:text-5xl">{title}</h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-[#aab2ba]">{intro}</p>
             <p className="mt-4 text-xs font-medium uppercase tracking-[0.08em] text-[#747e87]">
-              Last updated August 21, 2026
+              Last updated August 22, 2026
             </p>
           </header>
           <div className="mt-9 space-y-10 text-[15px] leading-7 text-[#b8c0c7] [&_a]:font-semibold [&_a]:text-[#79ed72] [&_a]:underline [&_a]:decoration-[#79ed72]/30 [&_a]:underline-offset-2 [&_h2]:mb-3 [&_h2]:text-xl [&_h2]:font-bold [&_h2]:tracking-[-0.025em] [&_h2]:text-white [&_li]:pl-1 [&_strong]:font-semibold [&_strong]:text-[#e9edf0] [&_ul]:space-y-3">

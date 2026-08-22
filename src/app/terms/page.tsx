@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LegalPage } from "@/components/public/legal-page";
+import { SUPPORT_EMAIL, SUPPORT_EMAIL_HREF } from "@/lib/site";
 
 export const metadata: Metadata = {
   title: "Terms | TopMySaaS",
@@ -96,6 +97,13 @@ export default function TermsPage() {
         <p>
           Our <Link href="/privacy">Privacy Policy</Link> describes the limited information used to process bids and
           operate the leaderboard.
+        </p>
+      </section>
+
+      <section>
+        <h2>8. Contact</h2>
+        <p>
+          Questions about these terms can be sent to <a href={SUPPORT_EMAIL_HREF}>{SUPPORT_EMAIL}</a>.
         </p>
       </section>
     </LegalPage>

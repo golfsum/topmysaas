@@ -121,24 +121,42 @@ npm run firebase:emulators
 
 ## Stripe setup
 
-1. Put the Stripe test secret key in `STRIPE_SECRET_KEY`.
-2. Create a webhook endpoint at `https://topmysaas.com/api/stripe/webhook`.
-3. Subscribe it to:
+TopMySaaS creates a one-time Checkout Session with inline price data for each variable bid. You do not need to create a Stripe Product, Price, Payment Link, publishable key, or client-side Stripe integration.
+
+### Test mode
+
+1. Create or select a Stripe sandbox and copy its `sk_test_...` secret into `STRIPE_SECRET_KEY` for the matching Vercel environment.
+2. Configure Firebase and the other required variables before testing. Stripe fulfillment writes the paid bid to Firestore.
+3. Deploy to a stable public HTTPS domain. A Vercel preview protected by login cannot receive Stripe webhook deliveries.
+4. In Stripe Workbench, create an Account-scoped snapshot-event webhook destination at `https://topmysaas.com/api/stripe/webhook`.
+5. Subscribe it to:
    - `checkout.session.completed`
    - `checkout.session.async_payment_succeeded`
    - `checkout.session.async_payment_failed`
    - `checkout.session.expired`
-4. Put the endpoint signing secret in `STRIPE_WEBHOOK_SECRET`.
+6. Copy that destination's test `whsec_...` signing secret into `STRIPE_WEBHOOK_SECRET` for the same Vercel environment.
+7. Redeploy after saving the variables. Vercel environment changes do not update an existing deployment.
+8. Place a test bid with card `4242 4242 4242 4242`, any future expiry date, and any three-digit CVC.
+9. Confirm Stripe reports an HTTP 200 webhook delivery and Firestore contains the fulfilled Checkout Session, one bid document, and the updated listing total.
 
 For local webhook testing:
 
 ```bash
-stripe listen --forward-to localhost:3000/api/stripe/webhook
+stripe login
+stripe listen --events checkout.session.completed,checkout.session.async_payment_succeeded,checkout.session.async_payment_failed,checkout.session.expired --forward-to http://localhost:3000/api/stripe/webhook
 ```
 
 Use the temporary `whsec_...` value printed by the Stripe CLI in `.env.local`.
 
 The success redirect never grants a rank. Only a paid Checkout Session received through a valid signed webhook can update the board. Session IDs are used as Firestore bid IDs, making repeated webhook deliveries harmless.
+
+### Live mode
+
+1. Finish Stripe account activation, payout-bank setup, two-factor authentication, public business details, and the statement descriptor.
+2. Use separate production Firebase data rather than mixing sandbox bids with live revenue.
+3. Create a live-mode webhook destination with the same URL and four events. Test and live webhook secrets are different.
+4. Set the matching `sk_live_...` key and live `whsec_...` secret together in the Vercel Production environment.
+5. Redeploy, complete one small real bid, and verify the Stripe delivery, Firestore records, leaderboard rank, and admin revenue before opening bidding broadly.
 
 ## Data model
 
@@ -192,8 +210,8 @@ npm run build
 2. Add every production environment variable to the Next.js host.
 3. Set `NEXT_PUBLIC_SITE_URL=https://topmysaas.com` and `DEMO_MODE=false`.
 4. Deploy the Next.js application.
-5. Register the production Stripe webhook and update `STRIPE_WEBHOOK_SECRET`.
-6. Complete one small test-mode bid and verify the listing, bid history, admin revenue, and reset metadata in Firestore.
-7. Switch Stripe keys only after the full test-mode flow succeeds.
+5. Register a separate live Stripe webhook and update both `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` together.
+6. Redeploy so the new Vercel environment values take effect.
+7. Complete one small live bid and verify the listing, bid history, admin revenue, webhook delivery, and reset metadata in production Firestore.
 
 Before accepting live money, have qualified counsel review the Terms and Privacy Policy for the operating entity, jurisdiction, contact details, tax treatment, and dispute requirements. The included copy implements the requested product protections but is not jurisdiction-specific legal advice.
