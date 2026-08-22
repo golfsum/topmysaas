@@ -366,7 +366,6 @@ export async function createCheckout(
     session = await getStripe().checkout.sessions.create(
       {
         mode: "payment",
-        payment_method_types: ["card"],
         client_reference_id: intentId,
         metadata: {
           bidIntentId: intentId,
