@@ -97,13 +97,19 @@ On Google-managed infrastructure, Application Default Credentials can replace th
 2. Enable Email/Password under Authentication.
 3. Create the administrator user and copy its Firebase UID into `FIREBASE_ADMIN_UID`.
 4. Create a server service account or configure Application Default Credentials.
-5. Deploy rules, indexes, and the scheduled Function together from the repository root:
+5. Deploy rules, indexes, and the scheduled Function together from the repository root, targeting the intended project explicitly:
 
 ```bash
-npm run firebase:deploy
+npm run firebase:deploy -- --project <firebase-project-id>
 ```
 
-The deploy script includes both `firestore` and `functions`. The scheduled `weeklyBoardReset` Function uses `0 0 * * 1` with the `UTC` timezone.
+6. Wait until every composite index reports `READY` before enabling bidding or loading the admin dashboard:
+
+```bash
+npx firebase-tools firestore:indexes --project <firebase-project-id> --pretty
+```
+
+The deploy script includes both `firestore` and `functions`. The scheduled `weeklyBoardReset` Function uses `0 0 * * 1` with the `UTC` timezone. A successful index deployment starts an asynchronous build; queries can still fail until the required indexes are ready.
 
 For local emulators, add these values to `.env.local`:
 
@@ -206,12 +212,13 @@ npm run build
 
 ## Production deployment
 
-1. Deploy Firestore rules, indexes, and Functions with `npm run firebase:deploy`.
-2. Add every production environment variable to the Next.js host.
-3. Set `NEXT_PUBLIC_SITE_URL=https://topmysaas.com` and `DEMO_MODE=false`.
-4. Deploy the Next.js application.
-5. Register a separate live Stripe webhook and update both `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` together.
-6. Redeploy so the new Vercel environment values take effect.
-7. Complete one small live bid and verify the listing, bid history, admin revenue, webhook delivery, and reset metadata in production Firestore.
+1. Deploy Firestore rules, indexes, and Functions with `npm run firebase:deploy -- --project <firebase-project-id>`.
+2. Confirm every required Firestore composite index reports `READY`.
+3. Add every production environment variable to the Next.js host.
+4. Set `NEXT_PUBLIC_SITE_URL=https://topmysaas.com` and `DEMO_MODE=false`.
+5. Deploy the Next.js application.
+6. Register a separate live Stripe webhook and update both `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` together.
+7. Redeploy so the new Vercel environment values take effect.
+8. Complete one small live bid and verify the listing, bid history, admin revenue, webhook delivery, and reset metadata in production Firestore.
 
 Before accepting live money, have qualified counsel review the Terms and Privacy Policy for the operating entity, jurisdiction, contact details, tax treatment, and dispute requirements. The included copy implements the requested product protections but is not jurisdiction-specific legal advice.

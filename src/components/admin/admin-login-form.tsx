@@ -27,7 +27,7 @@ function getLoginErrorMessage(error: unknown): string {
       case "auth/user-disabled":
       case "auth/user-not-found":
       case "auth/wrong-password":
-        return "The email or password is incorrect.";
+        return "The email or password is incorrect. Use the email attached to your Firebase admin account.";
       case "auth/too-many-requests":
         return "Too many sign-in attempts. Wait a moment and try again.";
       case "auth/network-request-failed":
@@ -158,7 +158,7 @@ export function AdminLoginForm() {
                     onChange={(event) => setEmail(event.target.value)}
                     disabled={isSubmitting || !isFirebaseClientConfigured}
                     className="min-h-12 w-full rounded-xl border border-white/10 bg-black/30 px-4 text-base text-white outline-none transition placeholder:text-zinc-600 hover:border-white/20 focus:border-[#67e85f]/70 focus:ring-3 focus:ring-[#67e85f]/10 disabled:cursor-not-allowed disabled:opacity-60"
-                    placeholder="admin@topmysaas.com"
+                    placeholder="you@example.com"
                   />
                 </label>
 

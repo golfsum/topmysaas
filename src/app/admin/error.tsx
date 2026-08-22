@@ -13,7 +13,7 @@ export default function AdminError({ reset }: { reset: () => void }) {
           The dashboard could not load
         </h1>
         <p className="mt-3 text-sm leading-6 text-zinc-400">
-          Check the server configuration and try the request again.
+          Verify the Firebase indexes are ready, then try the request again.
         </p>
         <button
           type="button"

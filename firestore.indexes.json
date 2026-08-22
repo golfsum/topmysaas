@@ -35,6 +35,14 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "weekId", "order": "ASCENDING" },
+        { "fieldPath": "amountCents", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bids",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "weekId", "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     }
