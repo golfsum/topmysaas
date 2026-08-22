@@ -6,6 +6,7 @@ import {
   type LeaderboardSnapshot,
   type PublicListing,
 } from "@/lib/domain/types";
+import { paginateLeaderboard } from "@/lib/domain/leaderboard-pagination";
 import { listingVisitPath } from "@/lib/domain/listing-links";
 import {
   ArrowUpRight,
@@ -23,6 +24,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BidDialog, type BidTarget } from "./bid-dialog";
 import { Countdown } from "./countdown";
+import { LeaderboardPagination } from "./leaderboard-pagination";
 import { LowerRankings } from "./lower-rankings";
 import { SiteFooter } from "./site-footer";
 import { SiteHeader } from "./site-header";
@@ -32,6 +34,7 @@ type LoadPhase = "loading" | "ready" | "stale" | "error";
 type PublicHomeProps = {
   initialSnapshot?: LeaderboardSnapshot | null;
   checkoutCancelled?: boolean;
+  requestedPage?: number;
 };
 
 const rules = [
@@ -186,6 +189,7 @@ function LeaderCardSkeleton() {
 export function PublicHome({
   initialSnapshot = null,
   checkoutCancelled = false,
+  requestedPage = 1,
 }: PublicHomeProps) {
   const initialUsableSnapshot =
     initialSnapshot?.source === "unavailable" ? null : initialSnapshot;
@@ -248,8 +252,15 @@ export function PublicHome({
     snapshot?.source === "firestore" || snapshot?.source === "demo";
   const trackClicks = snapshot?.source === "firestore";
   const allListings = snapshot?.listings ?? [];
+  const leaderboardPage = paginateLeaderboard(allListings, requestedPage);
   const listings = allListings.slice(0, 5);
-  const lowerListings = allListings.slice(5);
+  const showHighlightedRankings = leaderboardPage.currentPage === 1;
+  const lowerListings = showHighlightedRankings
+    ? leaderboardPage.listings.slice(5)
+    : leaderboardPage.listings;
+  const lowerStartRank = showHighlightedRankings
+    ? 6
+    : leaderboardPage.startRank;
   const topListing = listings[0];
   const resetAt = snapshot?.nextResetAt ?? nextMondayUtc();
   const generatedAt = Date.parse(snapshot?.generatedAt ?? "");
@@ -443,7 +454,9 @@ export function PublicHome({
               <div>
                 <div className="flex flex-wrap items-center gap-3">
                   <h2 id="leaderboard-title" className="text-2xl font-bold tracking-[-0.035em] sm:text-[27px]">
-                    Current Top 5
+                    {showHighlightedRankings
+                      ? "Current Top 5"
+                      : `Rankings #${leaderboardPage.startRank}–#${leaderboardPage.endRank}`}
                   </h2>
                   {snapshot?.source === "demo" ? (
                     <span className="rounded-full border border-amber-300/20 bg-amber-300/[0.08] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em] text-amber-200">
@@ -451,7 +464,11 @@ export function PublicHome({
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-1.5 text-sm text-[#8f98a1]">Successful bids are ranked by total paid this week.</p>
+                <p className="mt-1.5 text-sm text-[#8f98a1]">
+                  {showHighlightedRankings
+                    ? "Successful bids are ranked by total paid this week."
+                    : "Continuing the live leaderboard in exact global rank order."}
+                </p>
               </div>
               <div className="flex items-center gap-2 text-xs text-[#8f98a1]">
                 <span className={`h-2 w-2 rounded-full ${phase === "ready" ? "live-dot bg-[#67e85f]" : phase === "stale" ? "bg-amber-300" : "bg-[#747e87]"}`} />
@@ -477,11 +494,13 @@ export function PublicHome({
               </div>
             ) : null}
 
-            <div
-              role="table"
-              aria-label="Current Top 5 SaaS rankings"
-              className="hidden overflow-hidden rounded-xl border border-[#293038] bg-[#0c0f12] md:block"
-            >
+            {showHighlightedRankings ? (
+              <>
+                <div
+                  role="table"
+                  aria-label="Current Top 5 SaaS rankings"
+                  className="hidden overflow-hidden rounded-xl border border-[#293038] bg-[#0c0f12] md:block"
+                >
               <div role="row" className="grid grid-cols-[70px_minmax(0,1fr)_150px_210px] items-center border-b border-[#293038] bg-white/[0.025] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.11em] text-[#8f98a1]">
                 <span role="columnheader">Rank</span>
                 <span role="columnheader">SaaS product</span>
@@ -547,9 +566,9 @@ export function PublicHome({
                   );
                 })}
               </div>
-            </div>
+                </div>
 
-            <div className="space-y-3 md:hidden">
+                <div className="space-y-3 md:hidden">
               {Array.from({ length: 5 }, (_, index) => {
                 const rank = index + 1;
                 const listing = listings[index];
@@ -592,15 +611,26 @@ export function PublicHome({
                   </article>
                 );
               })}
-            </div>
+                </div>
+              </>
+            ) : null}
 
             <LowerRankings
               listings={lowerListings}
+              startRank={lowerStartRank}
               settings={settings}
               biddingEnabled={biddingEnabled}
               disabledBidLabel={disabledBidLabel}
               trackClicks={trackClicks}
               onBid={openBid}
+            />
+
+            <LeaderboardPagination
+              currentPage={leaderboardPage.currentPage}
+              totalPages={leaderboardPage.totalPages}
+              totalListings={leaderboardPage.totalListings}
+              startRank={leaderboardPage.startRank}
+              endRank={leaderboardPage.endRank}
             />
 
             <p className="mt-4 text-center text-xs leading-5 text-[#747e87]">

@@ -6,6 +6,7 @@ import {
   type LeaderboardSnapshot,
   type PublicListing,
 } from "@/lib/domain/types";
+import { paginateLeaderboard } from "@/lib/domain/leaderboard-pagination";
 import { listingVisitPath } from "@/lib/domain/listing-links";
 import {
   ArrowDown,
@@ -25,6 +26,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BidDialog, type BidTarget } from "./bid-dialog";
 import { Countdown } from "./countdown";
+import { LeaderboardPagination } from "./leaderboard-pagination";
 import { LowerRankings } from "./lower-rankings";
 import { SiteFooter } from "./site-footer";
 import { SiteHeader } from "./site-header";
@@ -34,6 +36,7 @@ type LoadPhase = "loading" | "ready" | "stale" | "error";
 type LaunchSoonHomeProps = {
   initialSnapshot?: LeaderboardSnapshot | null;
   checkoutCancelled?: boolean;
+  requestedPage?: number;
 };
 
 const launchRules = [
@@ -103,6 +106,7 @@ function initials(name: string) {
 export function LaunchSoonHome({
   initialSnapshot = null,
   checkoutCancelled = false,
+  requestedPage = 1,
 }: LaunchSoonHomeProps) {
   const initialUsableSnapshot =
     initialSnapshot?.source === "unavailable" ? null : initialSnapshot;
@@ -164,8 +168,15 @@ export function LaunchSoonHome({
 
   const settings = snapshot?.settings ?? DEFAULT_BOARD_SETTINGS;
   const allListings = snapshot?.listings ?? [];
+  const leaderboardPage = paginateLeaderboard(allListings, requestedPage);
   const listings = allListings.slice(0, 5);
-  const lowerListings = allListings.slice(5);
+  const showHighlightedRankings = leaderboardPage.currentPage === 1;
+  const lowerListings = showHighlightedRankings
+    ? leaderboardPage.listings.slice(5)
+    : leaderboardPage.listings;
+  const lowerStartRank = showHighlightedRankings
+    ? 6
+    : leaderboardPage.startRank;
   const topListing = listings[0];
   const trackClicks = snapshot?.source === "firestore";
   const topListingSafeUrl = topListing
@@ -523,7 +534,8 @@ export function LaunchSoonHome({
               ) : null}
             </div>
 
-            <ol className="mt-7 overflow-hidden rounded-2xl border border-white/10 bg-[#0d1013]">
+            {showHighlightedRankings ? (
+              <ol className="mt-7 overflow-hidden rounded-2xl border border-white/10 bg-[#0d1013]">
               {Array.from({ length: 5 }, (_, index) => {
                 const listing = listings[index];
                 const rank = index + 1;
@@ -606,15 +618,25 @@ export function LaunchSoonHome({
                   </li>
                 );
               })}
-            </ol>
+              </ol>
+            ) : null}
 
             <LowerRankings
               listings={lowerListings}
+              startRank={lowerStartRank}
               settings={settings}
               biddingEnabled={biddingEnabled}
               disabledBidLabel={disabledBidLabel}
               trackClicks={trackClicks}
               onBid={openBid}
+            />
+
+            <LeaderboardPagination
+              currentPage={leaderboardPage.currentPage}
+              totalPages={leaderboardPage.totalPages}
+              totalListings={leaderboardPage.totalListings}
+              startRank={leaderboardPage.startRank}
+              endRank={leaderboardPage.endRank}
             />
 
             <div className="mt-5 flex flex-col gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-4 sm:flex-row sm:items-center sm:justify-between">

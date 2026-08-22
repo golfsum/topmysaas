@@ -29,6 +29,7 @@ describe("lower rankings", () => {
           listing(9, 5_500),
           listing(10, 5_000),
         ]}
+        startRank={6}
         settings={DEFAULT_BOARD_SETTINGS}
         biddingEnabled
         disabledBidLabel="Bidding unavailable"
@@ -42,5 +43,23 @@ describe("lower rankings", () => {
     expect(html).toContain("Bid for #10 from $51");
     expect(html).toContain('href="/go/rank-10"');
     expect(html).not.toContain('href="https://rank-10.example/"');
+  });
+
+  it("keeps global rank numbers on later pages", () => {
+    const html = renderToStaticMarkup(
+      <LowerRankings
+        listings={[listing(51, 4_900), listing(52, 4_800)]}
+        startRank={51}
+        settings={DEFAULT_BOARD_SETTINGS}
+        biddingEnabled
+        disabledBidLabel="Bidding unavailable"
+        trackClicks
+        onBid={() => undefined}
+      />,
+    );
+
+    expect(html).toContain("Ranks #51–#52");
+    expect(html).toContain("#51");
+    expect(html).toContain("Bid for #52 from $49");
   });
 });

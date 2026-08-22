@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { LaunchSoonHome } from "@/components/public/launch-soon-home";
 import { PublicHome } from "@/components/public/public-home";
+import { parseLeaderboardPage } from "@/lib/domain/leaderboard-pagination";
 import { getLeaderboardSnapshot } from "@/lib/server/board-data";
 
 const launchMode = process.env.LAUNCH_MODE !== "false";
@@ -21,11 +22,17 @@ export const metadata: Metadata = launchMode
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ checkout?: string | string[] }>;
+  searchParams: Promise<{
+    checkout?: string | string[];
+    page?: string | string[];
+  }>;
 }) {
   await connection();
-  const resolvedSearchParams = await searchParams;
-  const initialSnapshot = await getLeaderboardSnapshot();
+  const [resolvedSearchParams, initialSnapshot] = await Promise.all([
+    searchParams,
+    getLeaderboardSnapshot(),
+  ]);
+  const requestedPage = parseLeaderboardPage(resolvedSearchParams.page);
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "WebSite",
@@ -46,11 +53,13 @@ export default async function Home({
         <LaunchSoonHome
           initialSnapshot={initialSnapshot}
           checkoutCancelled={resolvedSearchParams.checkout === "cancelled"}
+          requestedPage={requestedPage}
         />
       ) : (
         <PublicHome
           initialSnapshot={initialSnapshot}
           checkoutCancelled={resolvedSearchParams.checkout === "cancelled"}
+          requestedPage={requestedPage}
         />
       )}
     </>

@@ -11,6 +11,7 @@ import { listingVisitPath } from "@/lib/domain/listing-links";
 
 type LowerRankingsProps = {
   listings: PublicListing[];
+  startRank: number;
   settings: BoardSettings;
   biddingEnabled: boolean;
   disabledBidLabel: string;
@@ -57,6 +58,7 @@ function displayDomain(value: string) {
 
 export function LowerRankings({
   listings,
+  startRank,
   settings,
   biddingEnabled,
   disabledBidLabel,
@@ -83,13 +85,13 @@ export function LowerRankings({
           </p>
         </div>
         <span className="mt-1 text-xs font-medium text-[#8f98a1] sm:mt-0">
-          Ranks #6–#{listings.length + 5}
+          Ranks #{startRank}–#{startRank + listings.length - 1}
         </span>
       </div>
 
-      <ol start={6}>
+      <ol start={startRank}>
         {listings.map((listing, index) => {
-          const rank = index + 6;
+          const rank = startRank + index;
           const minimum = minimumForListing(listing, settings);
           const safeUrl = safeListingUrl(listing.url);
           const listingHref = safeUrl
