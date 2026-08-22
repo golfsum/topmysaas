@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { MAX_TARGETABLE_RANK } from "./types";
+
 export const checkoutRequestSchema = z.object({
   name: z
     .string()
@@ -21,10 +23,16 @@ export const checkoutRequestSchema = z.object({
     .int("Bid total must use whole cents.")
     .positive("Bid total must be greater than zero.")
     .max(99_999_999, "Bid total cannot exceed $999,999.99."),
+  targetRank: z
+    .number()
+    .int("Target rank must be a whole number.")
+    .min(1)
+    .max(MAX_TARGETABLE_RANK)
+    .optional(),
 });
 
 export const adminListingInputSchema = checkoutRequestSchema
-  .omit({ targetTotalCents: true })
+  .omit({ targetTotalCents: true, targetRank: true })
   .extend({
     bidAmountCents: z
       .number()

@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     template: "%s | TopMySaaS",
   },
   description:
-    "Five SaaS spots. Ranked only by successful bids. The board resets every Monday at 00:00 UTC.",
+    "Every active paid SaaS listing is ranked by bid, with the Top 5 highlighted. The board resets every Monday at 00:00 UTC.",
   applicationName: "TopMySaaS",
   alternates: { canonical: "/" },
   openGraph: {
@@ -29,13 +29,13 @@ export const metadata: Metadata = {
     siteName: "TopMySaaS",
     title: "Top 5 SaaS. Ranked by bid.",
     description:
-      "Only five spots. Highest successful bid wins until Monday at 00:00 UTC.",
+      "Every active paid listing is ranked. The five highest bids stand out until Monday at 00:00 UTC.",
   },
   twitter: {
     card: "summary_large_image",
     title: "Top 5 SaaS. Ranked by bid.",
     description:
-      "Only five spots. Highest successful bid wins until Monday at 00:00 UTC.",
+      "Every active paid listing is ranked. The five highest bids stand out until Monday at 00:00 UTC.",
   },
   robots: {
     index: true,

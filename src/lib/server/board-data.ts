@@ -66,7 +66,6 @@ export async function getLeaderboardSnapshot(
       .where("isActive", "==", true)
       .orderBy("bidAmountCents", "desc")
       .orderBy("createdAt", "asc")
-      .limit(5)
       .get();
 
     return {

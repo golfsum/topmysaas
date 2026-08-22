@@ -48,6 +48,9 @@ export function BidDialog({ open, settings, target, onClose }: BidDialogProps) {
   const titleId = useId();
   const descriptionId = useId();
   const amountHelpId = useId();
+  const [minimumTotalCents, setMinimumTotalCents] = useState(
+    target.minimumTotalCents,
+  );
   const [form, setForm] = useState<BidForm>(() => ({
     ...initialForm,
     amount: (target.minimumTotalCents / 100).toFixed(
@@ -92,8 +95,8 @@ export function BidDialog({ open, settings, target, onClose }: BidDialogProps) {
     setError(null);
 
     const targetTotalCents = Math.round(Number(form.amount) * 100);
-    if (!Number.isFinite(targetTotalCents) || targetTotalCents < target.minimumTotalCents) {
-      setError(`Enter a new total of at least ${dollars(target.minimumTotalCents)}.`);
+    if (!Number.isFinite(targetTotalCents) || targetTotalCents < minimumTotalCents) {
+      setError(`Enter a new total of at least ${dollars(minimumTotalCents)}.`);
       return;
     }
 
@@ -110,6 +113,7 @@ export function BidDialog({ open, settings, target, onClose }: BidDialogProps) {
       url,
       description: form.description.trim(),
       targetTotalCents,
+      ...(target.rank ? { targetRank: target.rank } : {}),
     };
 
     setSubmitting(true);
@@ -124,10 +128,28 @@ export function BidDialog({ open, settings, target, onClose }: BidDialogProps) {
       });
 
       const data = (await response.json().catch(() => null)) as
-        | (Partial<CheckoutResponse> & { error?: string; message?: string })
+        | (Partial<CheckoutResponse> & {
+            error?: string;
+            message?: string;
+            details?: { requiredTargetCents?: number };
+          })
         | null;
 
       if (!response.ok || !data?.checkoutUrl) {
+        const requiredTargetCents = data?.details?.requiredTargetCents;
+        if (
+          Number.isSafeInteger(requiredTargetCents) &&
+          requiredTargetCents !== undefined &&
+          requiredTargetCents > minimumTotalCents
+        ) {
+          setMinimumTotalCents(requiredTargetCents);
+          setForm((current) => ({
+            ...current,
+            amount: (requiredTargetCents / 100).toFixed(
+              requiredTargetCents % 100 === 0 ? 0 : 2,
+            ),
+          }));
+        }
         throw new Error(data?.error || data?.message || "Checkout could not be started. Please try again.");
       }
 
@@ -247,7 +269,7 @@ export function BidDialog({ open, settings, target, onClose }: BidDialogProps) {
                 type="number"
                 inputMode="decimal"
                 required
-                min={target.minimumTotalCents / 100}
+                min={minimumTotalCents / 100}
                 step="0.01"
                 value={form.amount}
                 onChange={(event) => updateField("amount", event.target.value)}
@@ -256,9 +278,9 @@ export function BidDialog({ open, settings, target, onClose }: BidDialogProps) {
               />
             </span>
             <span id={amountHelpId} className="mt-2 block text-xs font-normal leading-5 text-[#8f98a1]">
-              Estimated minimum: {dollars(target.minimumTotalCents)}. New listings start at {dollars(settings.minBidCents)};
-              owned increases add at least {dollars(settings.minIncrementCents)}. Only the original secure device can
-              pay the difference. The server rechecks totals before checkout.
+              Estimated minimum: {dollars(minimumTotalCents)}. New listings start at {dollars(settings.minBidCents)};
+              increases add at least {dollars(settings.minIncrementCents)}. The first successful bidder claims an
+              unowned listing for that secure device; later increases from that device pay only the difference.
             </span>
           </label>
 

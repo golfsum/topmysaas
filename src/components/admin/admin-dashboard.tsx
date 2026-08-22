@@ -477,7 +477,7 @@ export function AdminDashboard({
       {openDialog?.type === "delete" ? (
         <ConfirmDialog
           title={`Delete ${openDialog.listing.name}?`}
-          description="This removes the listing and blocks it from rejoining the current board. Payment records remain in bid history for revenue reconciliation."
+          description="This removes the listing and invalidates checkouts already in progress. A brand-new paid bid can rejoin later. Use Hide when you need to block bidding until you restore the listing. Payment records remain in bid history."
           confirmLabel="Delete listing"
           isBusy={isMutating}
           errorMessage={notice?.tone === "error" ? notice.message : undefined}

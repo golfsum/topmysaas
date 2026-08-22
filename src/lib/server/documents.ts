@@ -33,9 +33,12 @@ export type BidIntentDocument = {
   normalizedUrl: string;
   description: string;
   ownerTokenHash: string;
+  acceptedRemovalId?: string;
   weekId: string;
   boardGeneration: number;
   targetTotalCents: number;
+  targetRank?: number;
+  requiredTargetCentsAtCreation?: number;
   baseTotalCents: number;
   amountDueCents: number;
   startsNewPeriod: boolean;

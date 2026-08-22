@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { ImageResponse } from "next/og";
 
-export const alt = "TopMySaaS weekly Top 5 leaderboard";
+export const alt = "TopMySaaS weekly SaaS ranking leaderboard";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -57,7 +57,7 @@ export default function OpenGraphImage() {
           </div>
         </div>
         <div style={{ fontSize: 29, color: "#aab2ba" }}>
-          Only five spots. The board resets every Monday at 00:00 UTC.
+          Every active paid listing is ranked. The Top 5 stand out until Monday at 00:00 UTC.
         </div>
       </div>
 

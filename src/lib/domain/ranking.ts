@@ -25,3 +25,13 @@ export function findRank(
   );
   return index === -1 ? null : index + 1;
 }
+
+export function minimumTotalForTargetRank(
+  occupantTotalCents: number | undefined,
+  minBidCents: number,
+  minIncrementCents: number,
+): number {
+  if (occupantTotalCents === undefined) return minBidCents;
+
+  return Math.max(minBidCents, occupantTotalCents + minIncrementCents);
+}

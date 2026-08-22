@@ -189,7 +189,7 @@ export function ListingsSection({
                         }`}
                       >
                         <td className="px-5 py-4 text-center font-mono text-sm text-zinc-500 tabular-nums">
-                          {rank && rank <= 5 ? (
+                          {rank ? (
                             `#${rank}`
                           ) : (
                             <>
@@ -300,7 +300,7 @@ export function ListingsSection({
                             </p>
                           </div>
                           <span className="shrink-0 font-mono text-sm text-zinc-500">
-                            {rank && rank <= 5 ? (
+                            {rank ? (
                               `#${rank}`
                             ) : (
                               <>

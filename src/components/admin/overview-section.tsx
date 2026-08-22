@@ -55,7 +55,7 @@ export function OverviewSection({
     {
       label: "Active listings",
       value: activeListings.toLocaleString("en-US"),
-      detail: `${Math.min(activeListings, 5)} of 5 ranked spots filled`,
+      detail: `${Math.min(activeListings, 5)} highlighted in the Top 5`,
       icon: Trophy,
     },
     {

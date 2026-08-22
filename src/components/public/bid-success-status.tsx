@@ -117,9 +117,13 @@ export function BidSuccessStatus() {
                   </span>
                 </div>
               ) : (
-                <p className="mt-4 text-sm leading-6 text-[#aab2ba]">
-                  Your bid was recorded. The listing is currently outside the displayed Top 5.
-                </p>
+                <div className="mx-auto mt-5 max-w-sm rounded-xl border border-white/10 bg-white/[0.035] px-4 py-4">
+                  <p className="text-sm text-[#aab2ba]">
+                    Current rank{" "}
+                    <strong className="tabular-nums ml-1 text-xl text-white">#{result.rank}</strong>
+                  </p>
+                  <p className="mt-1 text-xs text-[#8f98a1]">The Top 5 are highlighted above all other rankings.</p>
+                </div>
               )
             ) : null}
             {result?.rank == null && message ? (

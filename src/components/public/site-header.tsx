@@ -53,7 +53,7 @@ export function SiteHeader({ isHome = false, onPlaceBid, bidDisabled = false }: 
                 TopMySaaS
               </span>
               <span className="hidden text-[11px] leading-4 text-[#8f98a1] sm:block">
-                Five spots. Highest bid wins.
+                Every active paid listing ranked. Top 5 highlighted.
               </span>
             </span>
           </Link>

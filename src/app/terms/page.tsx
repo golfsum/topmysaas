@@ -42,10 +42,11 @@ export default function TermsPage() {
         <h2>2. How ranking works</h2>
         <p>
           Active listings are ordered by their total amount successfully paid for the current weekly board. The five
-          highest totals are displayed publicly. A higher successful bid can change positions immediately. If you
-          increase the total for an existing listing, the checkout charge is the difference between its current total
-          and the new total accepted at checkout, only when the listing is verified by the secure ownership token on
-          that device. A matching URL alone does not prove ownership.
+          highest totals are highlighted, and every other active paid listing remains publicly ranked below them. A
+          higher successful bid can change positions immediately. If you increase the total for an existing listing,
+          the checkout charge is the difference between its current total and the new total accepted at checkout, only
+          when the listing is verified by the secure ownership token on that device. A matching URL alone does not
+          prove ownership.
         </p>
         <p className="mt-3">
           If two listings have the same successfully paid total, the listing that reached the board earlier stays

@@ -10,12 +10,12 @@ export const metadata: Metadata = launchMode
   ? {
       title: "TopMySaaS | Launching Soon, Bidding Open",
       description:
-        "The weekly Top 5 SaaS leaderboard is launching soon. Bidding is open now, with five spots ranked only by successful bid totals.",
+        "The weekly TopMySaaS leaderboard is launching soon. Every active paid listing is ranked by total bid, with the Top 5 highlighted.",
     }
   : {
       title: "TopMySaaS | Top 5 SaaS Ranked by Bid",
       description:
-        "Five SaaS spots ranked only by successful bids. The leaderboard resets every Monday at 00:00 UTC.",
+        "Every active paid SaaS listing is ranked by bid, with the Top 5 highlighted. The leaderboard resets every Monday at 00:00 UTC.",
     };
 
 export default async function Home({
@@ -32,8 +32,8 @@ export default async function Home({
     name: "TopMySaaS",
     url: "https://topmysaas.com/",
     description: launchMode
-      ? "The weekly Top 5 SaaS leaderboard is launching soon, and bidding is open now."
-      : "A weekly Top 5 SaaS leaderboard ranked only by successful bids.",
+      ? "The weekly SaaS ranking leaderboard is launching soon, and bidding is open now."
+      : "A weekly SaaS leaderboard where every active paid listing is ranked and the Top 5 are highlighted.",
   };
 
   return (

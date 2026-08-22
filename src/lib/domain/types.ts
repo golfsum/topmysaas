@@ -1,5 +1,7 @@
 export type DataSource = "firestore" | "demo" | "unavailable";
 
+export const MAX_TARGETABLE_RANK = 250;
+
 export type BoardSettings = {
   minBidCents: number;
   minIncrementCents: number;
@@ -31,6 +33,7 @@ export type CheckoutRequest = {
   url: string;
   description: string;
   targetTotalCents: number;
+  targetRank?: number;
 };
 
 export type CheckoutResponse = {

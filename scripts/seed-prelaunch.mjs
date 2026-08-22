@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import {
   applicationDefault,
@@ -57,6 +57,20 @@ function listingId(url) {
     .update(normalizedUrl(url))
     .digest("hex")
     .slice(0, 32)}`;
+}
+
+function tombstoneId(weekId, url) {
+  const urlHash = createHash("sha256")
+    .update(normalizedUrl(url))
+    .digest("hex")
+    .slice(0, 40);
+  return `${weekId}_${urlHash}`;
+}
+
+function nextUtcMonday(now = new Date()) {
+  const next = new Date(`${currentUtcWeekId(now)}T00:00:00.000Z`);
+  next.setUTCDate(next.getUTCDate() + 7);
+  return next;
 }
 
 function firebaseAppOptions() {
@@ -128,38 +142,55 @@ async function seed() {
 
     for (const listing of PRELAUNCH_LISTINGS) {
       const canonicalUrl = normalizedUrl(listing.url);
+      const matching = await db
+        .collection("listings")
+        .where("normalizedUrl", "==", canonicalUrl)
+        .where("weekId", "==", weekId)
+        .where("boardGeneration", "==", boardGeneration)
+        .limit(1)
+        .get();
+      if (!matching.empty) {
+        console.log(`Skipped ${listing.name}; it already exists on the current board.`);
+        continue;
+      }
+
       const id = listingId(canonicalUrl);
       const listingRef = db.collection("listings").doc(id);
       const existing = await listingRef.get();
-      const existingCreatedAt = existing.data()?.createdAt;
+      if (existing.exists) {
+        console.log(`Skipped ${listing.name}; its seed document already exists.`);
+        continue;
+      }
 
       batch.set(listingRef, {
         ...listing,
         url: canonicalUrl,
         normalizedUrl: canonicalUrl,
         bidAmount: listing.bidAmountCents / 100,
-        createdAt: existingCreatedAt ?? now,
+        createdAt: now,
         updatedAt: now,
         isActive: true,
         weekId,
         boardGeneration,
         source: "admin",
       });
-      batch.delete(
-        db
-          .collection("listingTombstones")
-          .doc(
-            `${weekId}_${createHash("sha256")
-              .update(canonicalUrl)
-              .digest("hex")
-              .slice(0, 40)}`,
-          ),
+      batch.set(
+        db.collection("listingTombstones").doc(tombstoneId(weekId, canonicalUrl)),
+        {
+          removalId: randomUUID(),
+          listingId: id,
+          normalizedUrl: canonicalUrl,
+          weekId,
+          boardGeneration,
+          expiresAt: Timestamp.fromDate(nextUtcMonday()),
+          restoredBySeedAt: FieldValue.serverTimestamp(),
+        },
       );
     }
 
     await batch.commit();
     console.log(
-      `Seeded ClientPlot.com at $6 and AppsResolve.com at $5 for board ${weekId}, generation ${boardGeneration}.`,
+      `Pre-launch seed completed for board ${weekId}, generation ${boardGeneration}.`,
     );
   } finally {
     await deleteApp(app);

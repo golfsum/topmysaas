@@ -1,6 +1,6 @@
 import "server-only";
 
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
 import { z } from "zod";
@@ -72,25 +72,21 @@ export async function performAdminAction(body: unknown): Promise<unknown> {
   switch (input.action) {
     case "createListing": {
       const now = Timestamp.now();
-      const { weekId } = getUtcWeekBounds(now.toDate());
+      const { weekId, nextResetAt } = getUtcWeekBounds(now.toDate());
       const boardGeneration = await getBoardGeneration(weekId);
       const website = normalizeAdminUrl(input.listing.url);
-      const matching = await db
+      const matchingQuery = db
         .collection("listings")
         .where("normalizedUrl", "==", website.normalizedUrl)
         .where("weekId", "==", weekId)
         .where("boardGeneration", "==", boardGeneration)
-        .limit(1)
-        .get();
-      if (!matching.empty) {
-        throw new ApiError(
-          409,
-          "LISTING_ALREADY_EXISTS",
-          "A listing for this URL already exists on the current board.",
-        );
-      }
+        .limit(1);
 
       const listingId = adminListingId(website.normalizedUrl);
+      const listingRef = db.collection("listings").doc(listingId);
+      const tombstoneRef = db
+        .collection("listingTombstones")
+        .doc(listingTombstoneId(weekId, website.normalizedUrl));
       const listing: ListingDocument = {
         name: input.listing.name,
         url: website.url,
@@ -105,14 +101,27 @@ export async function performAdminAction(body: unknown): Promise<unknown> {
         boardGeneration,
         source: "admin",
       };
-      const batch = db.batch();
-      batch.set(db.collection("listings").doc(listingId), listing);
-      batch.delete(
-        db
-          .collection("listingTombstones")
-          .doc(listingTombstoneId(weekId, website.normalizedUrl)),
-      );
-      await batch.commit();
+      await db.runTransaction(async (transaction) => {
+        const matching = await transaction.get(matchingQuery);
+        if (!matching.empty) {
+          throw new ApiError(
+            409,
+            "LISTING_ALREADY_EXISTS",
+            "A listing for this URL already exists on the current board.",
+          );
+        }
+
+        transaction.set(listingRef, listing);
+        transaction.set(tombstoneRef, {
+          removalId: randomUUID(),
+          listingId,
+          normalizedUrl: website.normalizedUrl,
+          weekId,
+          boardGeneration,
+          expiresAt: Timestamp.fromDate(nextResetAt),
+          restoredByAdminAt: FieldValue.serverTimestamp(),
+        });
+      });
       return { ok: true, listingId };
     }
 
@@ -172,21 +181,22 @@ export async function performAdminAction(body: unknown): Promise<unknown> {
 
     case "deleteListing": {
       const ref = db.collection("listings").doc(input.id);
-      const existing = await ref.get();
-      if (!existing.exists) {
-        throw new ApiError(404, "LISTING_NOT_FOUND", "Listing not found.");
-      }
-      const existingData = existing.data() as ListingDocument;
-      const tombstoneRef = db
-        .collection("listingTombstones")
-        .doc(
-          listingTombstoneId(
-            existingData.weekId,
-            existingData.normalizedUrl,
-          ),
-        );
       await db.runTransaction(async (transaction) => {
+        const existing = await transaction.get(ref);
+        if (!existing.exists) {
+          throw new ApiError(404, "LISTING_NOT_FOUND", "Listing not found.");
+        }
+        const existingData = existing.data() as ListingDocument;
+        const tombstoneRef = db
+          .collection("listingTombstones")
+          .doc(
+            listingTombstoneId(
+              existingData.weekId,
+              existingData.normalizedUrl,
+            ),
+          );
         transaction.set(tombstoneRef, {
+          removalId: randomUUID(),
           listingId: input.id,
           normalizedUrl: existingData.normalizedUrl,
           weekId: existingData.weekId,

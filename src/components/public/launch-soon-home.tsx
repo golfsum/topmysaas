@@ -24,6 +24,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BidDialog, type BidTarget } from "./bid-dialog";
 import { Countdown } from "./countdown";
+import { LowerRankings } from "./lower-rankings";
 import { SiteFooter } from "./site-footer";
 import { SiteHeader } from "./site-header";
 
@@ -35,7 +36,7 @@ type LaunchSoonHomeProps = {
 };
 
 const launchRules = [
-  "Only five weekly spots are available.",
+  "The Top 5 are highlighted; every active paid listing remains ranked below them.",
   "Rank is based only on successfully paid bid totals.",
   "A higher total can move any listing down immediately.",
   "On the original secure device, rebids charge only the difference.",
@@ -161,7 +162,9 @@ export function LaunchSoonHome({
   }, [refresh]);
 
   const settings = snapshot?.settings ?? DEFAULT_BOARD_SETTINGS;
-  const listings = snapshot?.listings.slice(0, 5) ?? [];
+  const allListings = snapshot?.listings ?? [];
+  const listings = allListings.slice(0, 5);
+  const lowerListings = allListings.slice(5);
   const topListing = listings[0];
   const boardKnown =
     snapshot?.source === "firestore" || snapshot?.source === "demo";
@@ -200,7 +203,7 @@ export function LaunchSoonHome({
 
   const openBid = (rank?: number) => {
     if (!snapshot || !biddingEnabled) return;
-    const listing = rank ? listings[rank - 1] : undefined;
+    const listing = rank ? allListings[rank - 1] : undefined;
     setBidTarget({
       rank,
       minimumTotalCents: minimumForSpot(listing, settings),
@@ -486,9 +489,8 @@ export function LaunchSoonHome({
                   ) : null}
                 </div>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[#aab2ba]">
-                  These are the five weekly positions forming before the full
-                  leaderboard launches. Successful payments re-rank them
-                  automatically.
+                  The Top 5 are highlighted. Every active paid listing remains
+                  ranked below them and can move up automatically.
                 </p>
               </div>
               {phase === "stale" ? (
@@ -574,6 +576,14 @@ export function LaunchSoonHome({
                 );
               })}
             </ol>
+
+            <LowerRankings
+              listings={lowerListings}
+              settings={settings}
+              biddingEnabled={biddingEnabled}
+              disabledBidLabel={disabledBidLabel}
+              onBid={openBid}
+            />
 
             <div className="mt-5 flex flex-col gap-3 rounded-xl border border-white/[0.07] bg-white/[0.025] p-4 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm leading-6 text-[#aab2ba]">

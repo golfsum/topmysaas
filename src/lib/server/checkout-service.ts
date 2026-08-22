@@ -10,7 +10,10 @@ import {
 } from "firebase-admin/firestore";
 import type Stripe from "stripe";
 
+import { listingOwnershipMatches } from "@/lib/domain/listing-ownership";
 import { calculateChargeCents } from "@/lib/domain/money";
+import { removalBarrierAllowsIntent } from "@/lib/domain/removal-barrier";
+import { minimumTotalForTargetRank } from "@/lib/domain/ranking";
 import type {
   BidStatusResponse,
   CheckoutResponse,
@@ -111,6 +114,24 @@ async function findListingInTransaction(
   return chooseExistingListing(snapshot.docs, weekId, boardGeneration);
 }
 
+async function findTargetRankOccupantInTransaction(
+  transaction: Transaction,
+  weekId: string,
+  boardGeneration: number,
+  targetRank: number,
+): Promise<QueryDocumentSnapshot | undefined> {
+  const query = getAdminDb()
+    .collection("listings")
+    .where("weekId", "==", weekId)
+    .where("boardGeneration", "==", boardGeneration)
+    .where("isActive", "==", true)
+    .orderBy("bidAmountCents", "desc")
+    .orderBy("createdAt", "asc")
+    .limit(targetRank);
+  const snapshot = await transaction.get(query);
+  return snapshot.docs[targetRank - 1];
+}
+
 export async function createCheckout(
   requestBody: unknown,
   ownerToken: string,
@@ -152,6 +173,7 @@ export async function createCheckout(
 
   const db = getAdminDb();
   const intentId = randomUUID();
+  const legacyTombstoneRemovalId = randomUUID();
   const intentRef = db.collection("bidIntents").doc(intentId);
   const createdAt = Timestamp.fromDate(now);
   const stateRef = db.collection(BOARD_STATES_COLLECTION).doc(weekId);
@@ -181,27 +203,26 @@ export async function createCheckout(
       ]);
     const boardGeneration = parseBoardGeneration(stateSnapshot.data());
 
-    if (tombstoneSnapshot.exists) {
-      throw new ApiError(
-        403,
-        "LISTING_REMOVED",
-        "This listing was removed and cannot rejoin the current board.",
-      );
-    }
-
+    const existingRemovalId = tombstoneSnapshot.get("removalId");
+    const acceptedRemovalId = tombstoneSnapshot.exists
+      ? typeof existingRemovalId === "string" && existingRemovalId.length > 0
+        ? existingRemovalId
+        : legacyTombstoneRemovalId
+      : undefined;
     const activeClaim =
       claimSnapshot.exists &&
       Number(claimSnapshot.get("boardGeneration") ?? -1) ===
         boardGeneration &&
       timestampMillis(claimSnapshot.get("expiresAt")) > now.getTime();
-    if (
-      activeClaim &&
-      claimSnapshot.get("ownerTokenHash") !== ownerTokenHash
-    ) {
+    if (activeClaim) {
+      const ownedByRequester =
+        claimSnapshot.get("ownerTokenHash") === ownerTokenHash;
       throw new ApiError(
         409,
         "LISTING_CHECKOUT_IN_PROGRESS",
-        "Another checkout for this listing is already in progress. Try again later.",
+        ownedByRequester
+          ? "A checkout for this listing is already open. Finish it or try again after it expires."
+          : "Another checkout for this listing is already in progress. Try again later.",
       );
     }
 
@@ -225,6 +246,14 @@ export async function createCheckout(
       weekId,
       boardGeneration,
     );
+    const targetRankOccupant = input.targetRank
+      ? await findTargetRankOccupantInTransaction(
+          transaction,
+          weekId,
+          boardGeneration,
+          input.targetRank,
+        )
+      : undefined;
     const existingData = existing?.data;
 
     if (typeof existingData?.hiddenReason === "string") {
@@ -239,18 +268,11 @@ export async function createCheckout(
       typeof existingData?.ownerTokenHash === "string"
         ? existingData.ownerTokenHash
         : undefined;
-    if (existingOwnerHash && existingOwnerHash !== ownerTokenHash) {
+    if (!listingOwnershipMatches(existingOwnerHash, ownerTokenHash)) {
       throw new ApiError(
         403,
         "LISTING_OWNED_ON_ANOTHER_DEVICE",
         "This listing is managed on another device. Cross-device recovery is not available.",
-      );
-    }
-    if (existingData?.source === "admin" && !existingOwnerHash) {
-      throw new ApiError(
-        403,
-        "ADMIN_LISTING_NOT_CLAIMABLE",
-        "This seeded listing can only be changed by the administrator.",
       );
     }
 
@@ -261,20 +283,46 @@ export async function createCheckout(
     const currentTotalCents = belongsToCurrentBoard
       ? Number(existingData?.bidAmountCents ?? 0)
       : 0;
-    const requiredTargetCents =
+    const requiredForOwnListingCents =
       currentTotalCents > 0
         ? Math.max(
             settings.minBidCents,
             currentTotalCents + settings.minIncrementCents,
           )
         : settings.minBidCents;
+    const requiredForTargetRankCents = minimumTotalForTargetRank(
+      targetRankOccupant
+        ? Number(targetRankOccupant.get("bidAmountCents") ?? 0)
+        : undefined,
+      settings.minBidCents,
+      settings.minIncrementCents,
+    );
+    const requiredTargetCents = Math.max(
+      requiredForOwnListingCents,
+      requiredForTargetRankCents,
+    );
 
     if (input.targetTotalCents < requiredTargetCents) {
+      const targetRankMoved = Boolean(
+        input.targetRank &&
+          input.targetTotalCents < requiredForTargetRankCents,
+      );
       throw new ApiError(
-        400,
-        "BID_TOO_LOW",
-        `The new total must be at least $${(requiredTargetCents / 100).toFixed(2)}.`,
-        { requiredTargetCents, currentTotalCents },
+        targetRankMoved ? 409 : 400,
+        targetRankMoved ? "TARGET_RANK_MOVED" : "BID_TOO_LOW",
+        targetRankMoved
+          ? `Rank #${input.targetRank} moved. Its new minimum is $${(requiredTargetCents / 100).toFixed(2)}.`
+          : `The new total must be at least $${(requiredTargetCents / 100).toFixed(2)}.`,
+        {
+          requiredTargetCents,
+          currentTotalCents,
+          ...(input.targetRank
+            ? {
+                targetRank: input.targetRank,
+                currentOccupantId: targetRankOccupant?.id ?? null,
+              }
+            : {}),
+        },
       );
     }
 
@@ -299,9 +347,12 @@ export async function createCheckout(
       normalizedUrl: normalizedWebsite.normalizedUrl,
       description: input.description,
       ownerTokenHash,
+      ...(acceptedRemovalId ? { acceptedRemovalId } : {}),
       weekId,
       boardGeneration,
       targetTotalCents: input.targetTotalCents,
+      ...(input.targetRank ? { targetRank: input.targetRank } : {}),
+      requiredTargetCentsAtCreation: requiredTargetCents,
       baseTotalCents: currentTotalCents,
       amountDueCents,
       startsNewPeriod: !belongsToCurrentBoard,
@@ -309,6 +360,16 @@ export async function createCheckout(
       createdAt,
       updatedAt: createdAt,
     };
+    if (
+      tombstoneSnapshot.exists &&
+      acceptedRemovalId === legacyTombstoneRemovalId
+    ) {
+      transaction.set(
+        tombstoneRef,
+        { removalId: acceptedRemovalId, updatedAt: createdAt },
+        { merge: true },
+      );
+    }
     transaction.create(intentRef, intent);
     transaction.set(claimRef, {
       intentId,
@@ -440,12 +501,24 @@ export async function createCheckout(
   };
   try {
     await db.runTransaction(async (transaction) => {
+      const claimSnapshot = await transaction.get(claimRef);
       transaction.set(db.collection("checkoutSessions").doc(session.id), sessionRecord);
       transaction.update(intentRef, {
         status: "checkout_created",
         stripeSessionId: session.id,
         updatedAt: Timestamp.now(),
       });
+      if (claimSnapshot.get("intentId") === intentId) {
+        transaction.set(
+          claimRef,
+          {
+            expiresAt: Timestamp.fromMillis(session.expires_at * 1_000),
+            stripeSessionId: session.id,
+            updatedAt: Timestamp.now(),
+          },
+          { merge: true },
+        );
+      }
     });
   } catch (error) {
     // The signed webhook can recover from metadata even if this convenience write fails.
@@ -525,11 +598,15 @@ export async function fulfillCheckoutSession(
     const tombstoneRef = db
       .collection("listingTombstones")
       .doc(listingTombstoneId(intent.weekId, intent.normalizedUrl));
-    const [listingSnapshot, stateSnapshot, tombstoneSnapshot] =
+    const claimRef = db
+      .collection("listingClaims")
+      .doc(listingTombstoneId(intent.weekId, intent.normalizedUrl));
+    const [listingSnapshot, stateSnapshot, tombstoneSnapshot, claimSnapshot] =
       await Promise.all([
         transaction.get(listingRef),
         transaction.get(stateRef),
         transaction.get(tombstoneRef),
+        transaction.get(claimRef),
       ]);
     const existing = listingSnapshot.exists
       ? (listingSnapshot.data() as ListingDocument)
@@ -538,9 +615,14 @@ export async function fulfillCheckoutSession(
     const sameBoard =
       existing?.weekId === intent.weekId &&
       Number(existing.boardGeneration ?? 0) === intent.boardGeneration;
+    const removalAllowsPayment = removalBarrierAllowsIntent(
+      tombstoneSnapshot.exists,
+      tombstoneSnapshot.get("removalId"),
+      intent.acceptedRemovalId,
+    );
     const boardAcceptsPayment =
       currentBoardGeneration === intent.boardGeneration &&
-      !tombstoneSnapshot.exists;
+      removalAllowsPayment;
     const startsNewPeriodNow =
       intent.startsNewPeriod &&
       (!existing || !sameBoard || existing.isActive !== true);
@@ -549,15 +631,21 @@ export async function fulfillCheckoutSession(
         ? existing.bidAmountCents
         : intent.baseTotalCents;
     const resultingTotalCents = currentTotalCents + session.amount_total;
-    const ownershipMatches =
-      !existing?.ownerTokenHash || existing.ownerTokenHash === intent.ownerTokenHash;
+    const ownershipMatches = listingOwnershipMatches(
+      existing?.ownerTokenHash,
+      intent.ownerTokenHash,
+    );
     const wasHiddenByAdmin = typeof existing?.hiddenReason === "string";
     const shouldActivate =
       boardAcceptsPayment &&
       (startsNewPeriodNow ? !wasHiddenByAdmin : (existing?.isActive ?? true));
 
     let listing: ListingDocument | undefined;
-    if (ownershipMatches && (boardAcceptsPayment || sameBoard || !existing)) {
+    if (
+      ownershipMatches &&
+      removalAllowsPayment &&
+      (boardAcceptsPayment || sameBoard || !existing)
+    ) {
       listing = {
         name: intent.name,
         url: intent.url,
@@ -621,6 +709,9 @@ export async function fulfillCheckoutSession(
       fulfilledAt,
       updatedAt: fulfilledAt,
     });
+    if (claimSnapshot.get("intentId") === intentId) {
+      transaction.delete(claimRef);
+    }
 
     return {
       listingId: intent.listingId,
@@ -639,25 +730,44 @@ export async function markCheckoutSession(
 
   const db = getAdminDb();
   const updatedAt = Timestamp.now();
-  const batch = db.batch();
-  batch.set(
-    db.collection("checkoutSessions").doc(session.id),
-    {
-      bidIntentId: intentId,
-      listingId: session.metadata?.listingId ?? "",
-      weekId: session.metadata?.weekId ?? "",
-      status,
-      createdAt: Timestamp.fromMillis(session.created * 1_000),
-      updatedAt,
-    } satisfies CheckoutSessionDocument,
-    { merge: true },
-  );
-  batch.set(
-    db.collection("bidIntents").doc(intentId),
-    { status, updatedAt },
-    { merge: true },
-  );
-  await batch.commit();
+  const intentRef = db.collection("bidIntents").doc(intentId);
+  const sessionRef = db.collection("checkoutSessions").doc(session.id);
+  await db.runTransaction(async (transaction) => {
+    const intentSnapshot = await transaction.get(intentRef);
+    const intent = intentSnapshot.exists
+      ? (intentSnapshot.data() as BidIntentDocument)
+      : undefined;
+    const claimRef = intent
+      ? db
+          .collection("listingClaims")
+          .doc(listingTombstoneId(intent.weekId, intent.normalizedUrl))
+      : undefined;
+    const claimSnapshot = claimRef
+      ? await transaction.get(claimRef)
+      : undefined;
+
+    if (intent?.status === "fulfilled") return;
+
+    transaction.set(
+      sessionRef,
+      {
+        bidIntentId: intentId,
+        listingId: session.metadata?.listingId ?? intent?.listingId ?? "",
+        weekId: session.metadata?.weekId ?? intent?.weekId ?? "",
+        status,
+        createdAt: Timestamp.fromMillis(session.created * 1_000),
+        updatedAt,
+      } satisfies CheckoutSessionDocument,
+      { merge: true },
+    );
+    transaction.set(intentRef, { status, updatedAt }, { merge: true });
+    if (
+      claimRef &&
+      claimSnapshot?.get("intentId") === intentId
+    ) {
+      transaction.delete(claimRef);
+    }
+  });
 }
 
 function isCheckoutSessionId(value: string): boolean {

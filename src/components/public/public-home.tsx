@@ -22,6 +22,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BidDialog, type BidTarget } from "./bid-dialog";
 import { Countdown } from "./countdown";
+import { LowerRankings } from "./lower-rankings";
 import { SiteFooter } from "./site-footer";
 import { SiteHeader } from "./site-header";
 
@@ -33,7 +34,7 @@ type PublicHomeProps = {
 };
 
 const rules = [
-  "Only 5 spots are available.",
+  "The Top 5 are highlighted; every active paid listing remains ranked.",
   "Rank is determined only by the total amount bid.",
   "Highest bid takes the highest rank.",
   "On the original secure device, raise your bid and pay only the difference.",
@@ -221,7 +222,9 @@ export function PublicHome({
   const settings = snapshot?.settings ?? DEFAULT_BOARD_SETTINGS;
   const boardKnown =
     snapshot?.source === "firestore" || snapshot?.source === "demo";
-  const listings = snapshot?.listings.slice(0, 5) ?? [];
+  const allListings = snapshot?.listings ?? [];
+  const listings = allListings.slice(0, 5);
+  const lowerListings = allListings.slice(5);
   const topListing = listings[0];
   const resetAt = snapshot?.nextResetAt ?? nextMondayUtc();
   const generatedAt = Date.parse(snapshot?.generatedAt ?? "");
@@ -258,7 +261,7 @@ export function PublicHome({
 
   const openBid = (rank?: number) => {
     if (!snapshot || !biddingEnabled) return;
-    const listing = rank ? listings[rank - 1] : undefined;
+    const listing = rank ? allListings[rank - 1] : undefined;
     setBidTarget({ rank, minimumTotalCents: minimumForSpot(listing, settings) });
     setDialogOpen(true);
   };
@@ -302,7 +305,7 @@ export function PublicHome({
                 <span className="block">Resets every Monday.</span>
               </h1>
               <p className="mx-auto mt-4 max-w-2xl text-base leading-7 text-[#aab2ba] sm:text-lg">
-                Only five spots. Highest bid wins.
+                Every active paid listing is ranked. The five highest bids stand out.
               </p>
             </div>
 
@@ -552,6 +555,14 @@ export function PublicHome({
                 );
               })}
             </div>
+
+            <LowerRankings
+              listings={lowerListings}
+              settings={settings}
+              biddingEnabled={biddingEnabled}
+              disabledBidLabel={disabledBidLabel}
+              onBid={openBid}
+            />
 
             <p className="mt-4 text-center text-xs leading-5 text-[#747e87]">
               A paid bid changes the ranking, but does not guarantee traffic, clicks, leads, or business results.

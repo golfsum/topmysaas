@@ -1,6 +1,6 @@
 # TopMySaaS
 
-TopMySaaS is a weekly Top 5 SaaS leaderboard. Products are ranked only by the total amount successfully paid, and the active board resets every Monday at 00:00 UTC.
+TopMySaaS is a weekly SaaS leaderboard. Every active paid listing is ranked by the total amount successfully paid, the Top 5 are highlighted, and the active board resets every Monday at 00:00 UTC.
 
 The public experience has no account system. Firebase Authentication is used only for the single configured administrator. Stripe Checkout collects payments, signed Stripe webhooks update Firestore, and a scheduled Firebase Function archives and closes each weekly board.
 
@@ -10,7 +10,7 @@ The temporary launch page is enabled by default. It keeps the full bid and payme
 
 - Next.js 16 App Router application with TypeScript and Tailwind CSS
 - Server-rendered public leaderboard with a 15-second refresh and live UTC countdown
-- Five ranked positions with responsive table and card layouts
+- Highlighted Top 5 plus responsive rankings for every active paid listing
 - Stripe Checkout creation, signed webhook fulfillment, and idempotent bid history
 - Secure device token for same-device rebids that charge only the difference
 - Atomic board generations that stop delayed webhooks from repopulating a reset board
