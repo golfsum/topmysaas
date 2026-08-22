@@ -6,14 +6,28 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "firebase:emulators": "npx firebase-tools emulators:start",
+    "firebase:deploy": "npx firebase-tools deploy --only firestore,functions",
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run build"
   },
   "dependencies": {
+    "firebase": "^12.18.0",
+    "firebase-admin": "^14.3.0",
+    "lucide-react": "^1.33.0",
     "next": "16.3.2",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
+    "stripe": "^22.5.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -21,6 +35,10 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.2",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.11"
+  },
+  "overrides": {
+    "uuid": "^11.1.1"
   }
 }

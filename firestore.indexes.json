@@ -1,0 +1,43 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "listings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "weekId", "order": "ASCENDING" },
+        { "fieldPath": "boardGeneration", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "bidAmountCents", "order": "DESCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "listings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "weekId", "order": "ASCENDING" },
+        { "fieldPath": "boardGeneration", "order": "ASCENDING" },
+        { "fieldPath": "bidAmountCents", "order": "DESCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "listings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "normalizedUrl", "order": "ASCENDING" },
+        { "fieldPath": "weekId", "order": "ASCENDING" },
+        { "fieldPath": "boardGeneration", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "bids",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "weekId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

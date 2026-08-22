@@ -1,47 +1,95 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { LegalPage } from "@/components/public/legal-page";
+
+export const metadata: Metadata = {
+  title: "Privacy Policy | TopMySaaS",
+  description: "How TopMySaaS handles information used to process bids and operate the leaderboard.",
+};
+
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
-      <div className="max-w-2xl mx-auto px-4 py-16">
-        <a href="/" className="text-green-400 text-sm hover:underline mb-8 inline-block">
-          ← Back to TopMySaaS
-        </a>
-        <h1 className="text-3xl font-bold mb-8">Privacy Policy</h1>
+    <LegalPage
+      eyebrow="Legal"
+      title="Privacy Policy"
+      intro="We collect only the information needed to process bids, publish product listings, protect the service, and keep payment records. We do not sell personal data."
+    >
+      <section>
+        <h2>1. Information we collect</h2>
+        <ul className="list-disc pl-5 marker:text-[#67e85f]">
+          <li>
+            <strong>Product details:</strong> the product name, website URL, short description, and bid total you submit.
+          </li>
+          <li>
+            <strong>Payment records:</strong> payment status, amount, timestamps, and Stripe checkout or transaction
+            identifiers needed to confirm a bid and maintain history.
+          </li>
+          <li>
+            <strong>Checkout information:</strong> Stripe may collect contact and payment information directly from you
+            to process payment. We do not store full payment card numbers.
+          </li>
+          <li>
+            <strong>Basic service data:</strong> standard request details needed for security, fraud prevention, and
+            reliable operation.
+          </li>
+          <li>
+            <strong>Listing ownership token:</strong> a random secure token may be stored in this browser so a later bid
+            can prove ownership and charge only the increase. It does not contain card details.
+          </li>
+        </ul>
+      </section>
 
-        <div className="space-y-6 text-zinc-300 text-sm leading-relaxed">
-          <section>
-            <h2 className="text-white font-semibold text-base mb-2">Information We Collect</h2>
-            <p>
-              When you place a bid we collect the product name, website URL, short
-              description, and bid amount you provide. Payment details are processed
-              by Stripe and are not stored on our servers.
-            </p>
-          </section>
+      <section>
+        <h2>2. How we use information</h2>
+        <p>
+          We use this information to create and rank listings, process and verify bids, charge only the appropriate
+          increase for a listing verified by a secure device token, reset the weekly board, prevent abuse, resolve
+          payment issues, and operate the admin dashboard.
+        </p>
+      </section>
 
-          <section>
-            <h2 className="text-white font-semibold text-base mb-2">How We Use It</h2>
-            <p>
-              We use this information solely to display your listing on the public
-              leaderboard and to process your payment. We do not sell personal data.
-            </p>
-          </section>
+      <section>
+        <h2>3. Public listing information</h2>
+        <p>
+          Product names, website URLs, descriptions, bid totals, and ranks are public while a listing is displayed.
+          Do not submit personal or confidential information in product fields.
+        </p>
+      </section>
 
-          <section>
-            <h2 className="text-white font-semibold text-base mb-2">Third Parties</h2>
-            <p>
-              Payments are handled by Stripe. Their privacy policy applies to payment
-              data. We may use basic analytics to understand site usage.
-            </p>
-          </section>
+      <section>
+        <h2>4. Service providers</h2>
+        <p>
+          We use Stripe to process payments and Firebase to store application data and provide administrative
+          authentication. These providers process information as needed to deliver their services and apply their own
+          privacy and security terms. We do not sell or rent personal data.
+        </p>
+      </section>
 
-          <section>
-            <h2 className="text-white font-semibold text-base mb-2">Contact</h2>
-            <p>
-              For privacy-related questions, contact the site operator via the domain
-              contact information.
-            </p>
-          </section>
-        </div>
-      </div>
-    </div>
+      <section>
+        <h2>5. Retention and security</h2>
+        <p>
+          We retain listing and bid records for as long as reasonably needed to operate the leaderboard, maintain
+          transaction history, prevent fraud, and meet legal or accounting obligations. We use reasonable technical and
+          administrative safeguards, but no online system can guarantee absolute security.
+        </p>
+      </section>
+
+      <section>
+        <h2>6. Your choices</h2>
+        <p>
+          You can choose not to place a bid. Public listings may also be removed when they violate the Terms. Payment
+          records may need to remain for transaction, fraud prevention, or legal purposes even after a listing is no
+          longer active.
+        </p>
+      </section>
+
+      <section>
+        <h2>7. Related terms</h2>
+        <p>
+          Review the <Link href="/terms">Terms</Link> for the bidding, ranking, reset, moderation, and refund rules that
+          apply when you place a bid.
+        </p>
+      </section>
+    </LegalPage>
   );
 }

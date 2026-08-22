@@ -1,0 +1,81 @@
+import { ImageResponse } from "next/og";
+
+export const alt = "TopMySaaS weekly Top 5 leaderboard";
+export const size = { width: 1200, height: 630 };
+export const contentType = "image/png";
+
+export default function OpenGraphImage() {
+  return new ImageResponse(
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        color: "#f7f9fa",
+        background: "#07090b",
+        padding: "72px 78px",
+        fontFamily: "Arial, sans-serif",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-end",
+            gap: 7,
+            height: 52,
+          }}
+        >
+          {[18, 28, 40, 52].map((height) => (
+            <div
+              key={height}
+              style={{
+                width: 11,
+                height,
+                background: "#67e85f",
+                borderRadius: 4,
+              }}
+            />
+          ))}
+        </div>
+        <div style={{ fontSize: 44, fontWeight: 760 }}>TopMySaaS</div>
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            fontSize: 82,
+            lineHeight: 1.02,
+            fontWeight: 800,
+          }}
+        >
+          <div style={{ display: "flex" }}>Top 5 SaaS.</div>
+          <div style={{ display: "flex" }}>
+            Ranked by&nbsp;<span style={{ color: "#67e85f" }}>bid.</span>
+          </div>
+        </div>
+        <div style={{ fontSize: 29, color: "#aab2ba" }}>
+          Only five spots. The board resets every Monday at 00:00 UTC.
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          color: "#aab2ba",
+          fontSize: 23,
+        }}
+      >
+        <span>topmysaas.com</span>
+        <span style={{ color: "#67e85f" }}>● LIVE WEEKLY BOARD</span>
+      </div>
+    </div>,
+    size,
+  );
+}
