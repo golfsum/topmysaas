@@ -155,7 +155,7 @@ export function ListingsSection({
         {sortedListings.length > 0 ? (
           <>
             <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full min-w-[900px] border-collapse text-left text-sm">
+              <table className="w-full min-w-[980px] border-collapse text-left text-sm">
                 <thead className="border-b border-white/8 bg-white/[0.018] text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
                   <tr>
                     <th className="w-20 px-5 py-3.5 text-center" scope="col">
@@ -166,6 +166,9 @@ export function ListingsSection({
                     </th>
                     <th className="px-4 py-3.5" scope="col">
                       Bid total
+                    </th>
+                    <th className="px-4 py-3.5" scope="col">
+                      Clicks
                     </th>
                     <th className="px-4 py-3.5" scope="col">
                       Status
@@ -231,6 +234,14 @@ export function ListingsSection({
                         </td>
                         <td className="px-4 py-4 font-mono font-semibold text-[#86f27f] tabular-nums">
                           {formatUsd(listing.bidAmountCents, true)}
+                        </td>
+                        <td className="px-4 py-4">
+                          <p className="font-mono font-semibold text-zinc-200 tabular-nums">
+                            {listing.clickCount.toLocaleString("en-US")}
+                          </p>
+                          <p className="mt-1 whitespace-nowrap text-[10px] uppercase tracking-wider text-zinc-600">
+                            {listing.currentBoardClickCount.toLocaleString("en-US")} this board
+                          </p>
                         </td>
                         <td className="px-4 py-4">
                           <span
@@ -312,14 +323,24 @@ export function ListingsSection({
                         </div>
                       </div>
                     </div>
-                    <div className="mt-4 flex items-center justify-between gap-4 border-t border-white/6 pt-3">
-                      <div>
-                        <p className="font-mono text-sm font-semibold text-[#86f27f] tabular-nums">
-                          {formatUsd(listing.bidAmountCents, true)}
-                        </p>
-                        <p className="mt-1 text-[10px] uppercase tracking-wider text-zinc-600">
-                          {listing.isActive ? "Active" : "Hidden"}
-                        </p>
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-4 border-t border-white/6 pt-3">
+                      <div className="flex items-center gap-6">
+                        <div>
+                          <p className="font-mono text-sm font-semibold text-[#86f27f] tabular-nums">
+                            {formatUsd(listing.bidAmountCents, true)}
+                          </p>
+                          <p className="mt-1 text-[10px] uppercase tracking-wider text-zinc-600">
+                            {listing.isActive ? "Active" : "Hidden"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="font-mono text-sm font-semibold text-zinc-200 tabular-nums">
+                            {listing.clickCount.toLocaleString("en-US")}
+                          </p>
+                          <p className="mt-1 text-[10px] uppercase tracking-wider text-zinc-600">
+                            clicks · {listing.currentBoardClickCount.toLocaleString("en-US")} this board
+                          </p>
+                        </div>
                       </div>
                       <ListingActions
                         listing={listing}

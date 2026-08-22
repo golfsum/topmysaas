@@ -10,6 +10,7 @@ import { getBoardGeneration } from "./board-state";
 import { getBoardSettings } from "./board-data";
 import { getAdminDb } from "./firebase-admin";
 import { mapAdminListing, mapBidActivity } from "./firestore-mappers";
+import { boardPeriodId, listingIdForUrl } from "./listing-identity";
 
 function mapRevenueStats(data: Record<string, unknown>): RevenueStats {
   return {
@@ -24,6 +25,13 @@ function mapRevenueStats(data: Record<string, unknown>): RevenueStats {
   };
 }
 
+function mapClickCount(data: Record<string, unknown> | undefined): number {
+  const value = data?.clickCount;
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0
+    ? value
+    : 0;
+}
+
 export async function getAdminDashboard(
   now = new Date(),
 ): Promise<AdminDashboardData> {
@@ -34,6 +42,7 @@ export async function getAdminDashboard(
   const boardGeneration = await getBoardGeneration(weekId);
   const currentBids = db.collection("bids").where("weekId", "==", weekId);
   const allBids = db.collection("bids");
+  const periodId = boardPeriodId(weekId, boardGeneration);
 
   const [
     currentAggregation,
@@ -41,6 +50,7 @@ export async function getAdminDashboard(
     listingsSnapshot,
     recentBidsSnapshot,
     settings,
+    boardClicksSnapshot,
   ] = await Promise.all([
     currentBids
       .aggregate({
@@ -63,7 +73,45 @@ export async function getAdminDashboard(
       .get(),
     db.collection("bids").orderBy("createdAt", "desc").limit(50).get(),
     getBoardSettings(),
+    db.collection("boardClickStats").doc(periodId).get(),
   ]);
+
+  const listingStatsIds = listingsSnapshot.docs.map((snapshot) => {
+    const data = snapshot.data();
+    const normalizedUrl =
+      typeof data.normalizedUrl === "string"
+        ? data.normalizedUrl
+        : typeof data.url === "string"
+          ? data.url
+          : snapshot.id;
+    return listingIdForUrl(normalizedUrl);
+  });
+  const lifetimeRefs = listingStatsIds.map((statsId) =>
+    db.collection("listingClickStats").doc(statsId),
+  );
+  const currentPeriodRefs = listingStatsIds.map((statsId) =>
+    db
+      .collection("listingClickStats")
+      .doc(statsId)
+      .collection("periods")
+      .doc(periodId),
+  );
+  const clickSnapshots =
+    lifetimeRefs.length > 0
+      ? await db.getAll(...lifetimeRefs, ...currentPeriodRefs)
+      : [];
+  const clickCountByPath = new Map(
+    clickSnapshots.map((snapshot) => [
+      snapshot.ref.path,
+      mapClickCount(snapshot.data() as Record<string, unknown> | undefined),
+    ]),
+  );
+  const listings = listingsSnapshot.docs.map((snapshot, index) => ({
+    ...mapAdminListing(snapshot),
+    clickCount: clickCountByPath.get(lifetimeRefs[index].path) ?? 0,
+    currentBoardClickCount:
+      clickCountByPath.get(currentPeriodRefs[index].path) ?? 0,
+  }));
 
   return {
     currentWeek: mapRevenueStats(
@@ -72,7 +120,10 @@ export async function getAdminDashboard(
     allTime: mapRevenueStats(
       allTimeAggregation.data() as Record<string, unknown>,
     ),
-    listings: listingsSnapshot.docs.map(mapAdminListing),
+    currentBoardClickCount: mapClickCount(
+      boardClicksSnapshot.data() as Record<string, unknown> | undefined,
+    ),
+    listings,
     recentBids: recentBidsSnapshot.docs.map(mapBidActivity),
     settings,
     weekId,

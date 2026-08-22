@@ -34,6 +34,11 @@ export default function PrivacyPage() {
             reliable operation.
           </li>
           <li>
+            <strong>Aggregate listing clicks:</strong> we count outbound opens of public listing links so listing
+            performance can be reviewed. These counters are not unique-visitor analytics, and we do not store an IP
+            address or browser fingerprint with an individual click record.
+          </li>
+          <li>
             <strong>Listing ownership token:</strong> a random secure token may be stored in this browser so a later bid
             can prove ownership and charge only the increase. It does not contain card details.
           </li>
@@ -45,7 +50,7 @@ export default function PrivacyPage() {
         <p>
           We use this information to create and rank listings, process and verify bids, charge only the appropriate
           increase for a listing verified by a secure device token, reset the weekly board, prevent abuse, resolve
-          payment issues, and operate the admin dashboard.
+          payment issues, measure aggregate outbound listing clicks, and operate the admin dashboard.
         </p>
       </section>
 

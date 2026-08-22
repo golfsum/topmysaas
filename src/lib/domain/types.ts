@@ -52,6 +52,8 @@ export type BidStatusResponse = {
 export type AdminListing = PublicListing & {
   weekId: string;
   isActive: boolean;
+  clickCount: number;
+  currentBoardClickCount: number;
   hiddenReason?: string;
   source: "checkout" | "admin";
 };
@@ -75,6 +77,7 @@ export type RevenueStats = {
 export type AdminDashboardData = {
   currentWeek: RevenueStats;
   allTime: RevenueStats;
+  currentBoardClickCount: number;
   listings: AdminListing[];
   recentBids: BidActivity[];
   settings: BoardSettings;

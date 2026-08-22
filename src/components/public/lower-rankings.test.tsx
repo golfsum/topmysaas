@@ -32,6 +32,7 @@ describe("lower rankings", () => {
         settings={DEFAULT_BOARD_SETTINGS}
         biddingEnabled
         disabledBidLabel="Bidding unavailable"
+        trackClicks
         onBid={() => undefined}
       />,
     );
@@ -39,5 +40,7 @@ describe("lower rankings", () => {
     expect(html).toContain("#10");
     expect(html).toContain("Rank 10 SaaS");
     expect(html).toContain("Bid for #10 from $51");
+    expect(html).toContain('href="/go/rank-10"');
+    expect(html).not.toContain('href="https://rank-10.example/"');
   });
 });

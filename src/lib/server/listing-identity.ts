@@ -12,3 +12,10 @@ export function listingTombstoneId(
 ): string {
   return `${weekId}_${listingIdForUrl(normalizedUrl)}`;
 }
+
+export function boardPeriodId(
+  weekId: string,
+  boardGeneration: number,
+): string {
+  return `${weekId}_g${boardGeneration}`;
+}

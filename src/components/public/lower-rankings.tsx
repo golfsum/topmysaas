@@ -7,12 +7,14 @@ import {
   type BoardSettings,
   type PublicListing,
 } from "@/lib/domain/types";
+import { listingVisitPath } from "@/lib/domain/listing-links";
 
 type LowerRankingsProps = {
   listings: PublicListing[];
   settings: BoardSettings;
   biddingEnabled: boolean;
   disabledBidLabel: string;
+  trackClicks: boolean;
   onBid: (rank?: number) => void;
 };
 
@@ -58,6 +60,7 @@ export function LowerRankings({
   settings,
   biddingEnabled,
   disabledBidLabel,
+  trackClicks,
   onBid,
 }: LowerRankingsProps) {
   if (listings.length === 0) return null;
@@ -89,6 +92,11 @@ export function LowerRankings({
           const rank = index + 6;
           const minimum = minimumForListing(listing, settings);
           const safeUrl = safeListingUrl(listing.url);
+          const listingHref = safeUrl
+            ? trackClicks
+              ? listingVisitPath(listing.id)
+              : safeUrl
+            : null;
           const canTargetRank = rank <= MAX_TARGETABLE_RANK;
 
           return (
@@ -107,9 +115,9 @@ export function LowerRankings({
               </div>
 
               <div className="min-w-0">
-                {safeUrl ? (
+                {listingHref ? (
                   <a
-                    href={safeUrl}
+                    href={listingHref}
                     target="_blank"
                     rel="sponsored nofollow noopener noreferrer"
                     aria-label={`Visit ${listing.name}, opens in a new tab`}
@@ -120,7 +128,7 @@ export function LowerRankings({
                         {listing.name}
                       </span>
                       <span className="mt-0.5 block truncate text-[11px] text-[#67e85f]">
-                        {displayDomain(safeUrl)}
+                        {displayDomain(listing.url)}
                       </span>
                     </span>
                     <ExternalLink

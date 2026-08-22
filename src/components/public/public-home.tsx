@@ -6,6 +6,7 @@ import {
   type LeaderboardSnapshot,
   type PublicListing,
 } from "@/lib/domain/types";
+import { listingVisitPath } from "@/lib/domain/listing-links";
 import {
   ArrowUpRight,
   Bolt,
@@ -108,33 +109,56 @@ function ProductMark({ listing, rank, large = false }: { listing: PublicListing;
   );
 }
 
-function ProductDetails({ listing, rank, large = false }: { listing: PublicListing; rank: number; large?: boolean }) {
+function ProductDetails({
+  listing,
+  rank,
+  large = false,
+  trackClicks,
+}: {
+  listing: PublicListing;
+  rank: number;
+  large?: boolean;
+  trackClicks: boolean;
+}) {
   const safeUrl = listingUrl(listing.url);
-  return (
-    <div className="flex min-w-0 items-center gap-3.5 sm:gap-4">
+  const content = (
+    <>
       <ProductMark listing={listing} rank={rank} large={large} />
       <div className="min-w-0">
-        <p className={`${large ? "text-xl sm:text-2xl" : "text-[15px] sm:text-base"} break-words font-bold tracking-[-0.02em] text-white`}>
+        <p className={`${large ? "text-xl sm:text-2xl" : "text-[15px] sm:text-base"} break-words font-bold tracking-[-0.02em] text-white transition-colors group-hover:text-[#83f27c]`}>
           {listing.name}
         </p>
         <p className={`${large ? "mt-1.5 text-sm sm:text-[15px]" : "mt-0.5 text-[13px]"} leading-5 text-[#aab2ba] md:line-clamp-2`}>
           {listing.description}
         </p>
         {safeUrl ? (
-          <a
-            href={safeUrl}
-            target="_blank"
-            rel="sponsored nofollow noopener noreferrer"
-            className={`${large ? "mt-2" : "mt-1"} inline-flex max-w-full items-center gap-1 truncate rounded-sm text-xs font-medium text-[#67e85f] underline decoration-[#67e85f]/20 underline-offset-2 transition-colors hover:text-[#8af384] hover:decoration-[#8af384]`}
+          <span
+            className={`${large ? "mt-2" : "mt-1"} inline-flex max-w-full items-center gap-1 truncate text-xs font-medium text-[#67e85f] underline decoration-[#67e85f]/20 underline-offset-2 transition-colors group-hover:text-[#8af384] group-hover:decoration-[#8af384]`}
           >
             <span className="truncate">{displayDomain(listing.url)}</span>
             <ExternalLink aria-hidden="true" size={11} className="shrink-0" />
             <span className="sr-only">opens in a new tab</span>
-          </a>
+          </span>
         ) : (
           <span className="mt-1 block text-xs text-[#747e87]">Website unavailable</span>
         )}
       </div>
+    </>
+  );
+
+  return safeUrl ? (
+    <a
+      href={trackClicks ? listingVisitPath(listing.id) : safeUrl}
+      target="_blank"
+      rel="sponsored nofollow noopener noreferrer"
+      aria-label={`Visit ${listing.name}, opens in a new tab`}
+      className="group flex min-w-0 items-center gap-3.5 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#67e85f] sm:gap-4"
+    >
+      {content}
+    </a>
+  ) : (
+    <div className="group flex min-w-0 items-center gap-3.5 sm:gap-4">
+      {content}
     </div>
   );
 }
@@ -222,6 +246,7 @@ export function PublicHome({
   const settings = snapshot?.settings ?? DEFAULT_BOARD_SETTINGS;
   const boardKnown =
     snapshot?.source === "firestore" || snapshot?.source === "demo";
+  const trackClicks = snapshot?.source === "firestore";
   const allListings = snapshot?.listings ?? [];
   const listings = allListings.slice(0, 5);
   const lowerListings = allListings.slice(5);
@@ -360,7 +385,12 @@ export function PublicHome({
                     <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.12em] text-[#67e85f] md:hidden">
                       Current #1
                     </p>
-                    <ProductDetails listing={topListing} rank={1} large />
+                    <ProductDetails
+                      listing={topListing}
+                      rank={1}
+                      large
+                      trackClicks={trackClicks}
+                    />
                   </div>
                   <div className="border-t border-white/10 pt-5 md:border-l md:border-t-0 md:pl-8 md:pt-0">
                     <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#aab2ba]">Current top bid</p>
@@ -476,7 +506,11 @@ export function PublicHome({
                       </div>
                       <div role="cell" className="min-w-0 py-3 pr-5">
                         {listing ? (
-                          <ProductDetails listing={listing} rank={rank} />
+                          <ProductDetails
+                            listing={listing}
+                            rank={rank}
+                            trackClicks={trackClicks}
+                          />
                         ) : (
                           <div>
                             <p className="text-sm font-semibold text-[#dce1e5]">{boardKnown ? "Open spot" : "Checking spot"}</p>
@@ -531,7 +565,11 @@ export function PublicHome({
                       </span>
                     </div>
                     {listing ? (
-                      <ProductDetails listing={listing} rank={rank} />
+                      <ProductDetails
+                        listing={listing}
+                        rank={rank}
+                        trackClicks={trackClicks}
+                      />
                     ) : (
                       <div>
                         <p className="font-bold text-white">{boardKnown ? "This spot is open" : "Checking this spot"}</p>
@@ -561,6 +599,7 @@ export function PublicHome({
               settings={settings}
               biddingEnabled={biddingEnabled}
               disabledBidLabel={disabledBidLabel}
+              trackClicks={trackClicks}
               onBid={openBid}
             />
 

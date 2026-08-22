@@ -1,8 +1,8 @@
 import {
   ArrowRight,
-  CalendarClock,
   CircleDollarSign,
   Gavel,
+  MousePointerClick,
   Trophy,
 } from "lucide-react";
 
@@ -59,15 +59,10 @@ export function OverviewSection({
       icon: Trophy,
     },
     {
-      label: "Next reset",
-      value: new Intl.DateTimeFormat("en-US", {
-        weekday: "short",
-        hour: "numeric",
-        minute: "2-digit",
-        timeZone: "UTC",
-      }).format(new Date(dashboard.nextResetAt)),
-      detail: "Every Monday at 00:00 UTC",
-      icon: CalendarClock,
+      label: "Clicks this board",
+      value: dashboard.currentBoardClickCount.toLocaleString("en-US"),
+      detail: "Raw outbound listing opens",
+      icon: MousePointerClick,
     },
   ] as const;
 

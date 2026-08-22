@@ -16,6 +16,7 @@ The temporary launch page is enabled by default. It keeps the full bid and payme
 - Atomic board generations that stop delayed webhooks from repopulating a reset board
 - Firebase email/password admin login restricted to one configured UID
 - Admin revenue overview, listing controls, bid activity, settings, and manual reset
+- Aggregate outbound listing-click tracking with lifetime and per-board admin counts
 - Monday 00:00 UTC scheduled reset with Top 5 archives
 - Deny-all Firestore client rules and required composite indexes
 - Terms, Privacy Policy, metadata, sitemap, robots, manifest, and generated social image
@@ -178,6 +179,7 @@ Operational collections:
 - `listingClaims`: temporary same-URL Checkout reservation
 - `listingTombstones`: current-week deletion barrier
 - `checkoutRateLimits`: hashed abuse-control windows
+- `listingClickStats` and `boardClickStats`: aggregate lifetime and per-board outbound click counters (no per-click visitor records)
 - `archives` and `resets`: prior Top 5 snapshots and reset execution records
 - `settings/board`: minimum bid, minimum increment, reset close window, and currency
 

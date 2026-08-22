@@ -61,6 +61,8 @@ export function mapAdminListing(
     ...mapPublicListing(snapshot),
     weekId: typeof data.weekId === "string" ? data.weekId : "",
     isActive: data.isActive === true,
+    clickCount: 0,
+    currentBoardClickCount: 0,
     ...(typeof data.hiddenReason === "string"
       ? { hiddenReason: data.hiddenReason }
       : {}),

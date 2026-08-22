@@ -6,6 +6,7 @@ import {
   type LeaderboardSnapshot,
   type PublicListing,
 } from "@/lib/domain/types";
+import { listingVisitPath } from "@/lib/domain/listing-links";
 import {
   ArrowDown,
   ArrowUpRight,
@@ -166,6 +167,15 @@ export function LaunchSoonHome({
   const listings = allListings.slice(0, 5);
   const lowerListings = allListings.slice(5);
   const topListing = listings[0];
+  const trackClicks = snapshot?.source === "firestore";
+  const topListingSafeUrl = topListing
+    ? safeListingUrl(topListing.url)
+    : null;
+  const topListingHref = topListingSafeUrl
+    ? trackClicks
+      ? listingVisitPath(topListing.id)
+      : topListingSafeUrl
+    : null;
   const boardKnown =
     snapshot?.source === "firestore" || snapshot?.source === "demo";
   const resetAt = snapshot?.nextResetAt ?? nextMondayUtc();
@@ -241,7 +251,7 @@ export function LaunchSoonHome({
                   className={`inline-flex h-8 items-center gap-2 rounded-full border px-3 text-[11px] font-bold uppercase tracking-[0.12em] ${
                     statusWarning
                       ? "border-amber-300/20 bg-amber-300/[0.08] text-amber-200"
-                      : "border-white/10 bg-white/[0.04] text-[#cbd2d7]"
+                      : "border-[#67e85f]/25 bg-[#67e85f]/10 text-[#83f27c]"
                   }`}
                 >
                   {statusWarning ? (
@@ -376,17 +386,18 @@ export function LaunchSoonHome({
                     >
                       {initials(topListing.name)}
                     </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-lg font-bold tracking-[-0.025em]">
-                        {topListing.name}
-                      </p>
-                      {safeListingUrl(topListing.url) ? (
-                        <a
-                          href={safeListingUrl(topListing.url) ?? undefined}
-                          target="_blank"
-                          rel="sponsored nofollow noopener noreferrer"
-                          className="mt-1 inline-flex max-w-full items-center gap-1 truncate rounded-sm text-xs font-medium text-[#67e85f] underline decoration-[#67e85f]/20 underline-offset-2 hover:text-[#8af384]"
-                        >
+                    {topListingHref ? (
+                      <a
+                        href={topListingHref}
+                        target="_blank"
+                        rel="sponsored nofollow noopener noreferrer"
+                        aria-label={`Visit ${topListing.name}, opens in a new tab`}
+                        className="group min-w-0 flex-1 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#67e85f]"
+                      >
+                        <p className="truncate text-lg font-bold tracking-[-0.025em] transition-colors group-hover:text-[#83f27c]">
+                          {topListing.name}
+                        </p>
+                        <span className="mt-1 inline-flex max-w-full items-center gap-1 truncate text-xs font-medium text-[#67e85f] underline decoration-[#67e85f]/20 underline-offset-2 group-hover:text-[#8af384]">
                           <span className="truncate">
                             {displayDomain(topListing.url)}
                           </span>
@@ -396,9 +407,15 @@ export function LaunchSoonHome({
                             className="shrink-0"
                           />
                           <span className="sr-only">opens in a new tab</span>
-                        </a>
-                      ) : null}
-                    </div>
+                        </span>
+                      </a>
+                    ) : (
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-lg font-bold tracking-[-0.025em]">
+                          {topListing.name}
+                        </p>
+                      </div>
+                    )}
                     <div className="text-right">
                       <p className="tabular-nums text-2xl font-extrabold tracking-[-0.035em] text-[#67e85f]">
                         {formatMoney(topListing.bidAmountCents)}
@@ -511,6 +528,12 @@ export function LaunchSoonHome({
                 const listing = listings[index];
                 const rank = index + 1;
                 const safeUrl = listing ? safeListingUrl(listing.url) : null;
+                const listingHref =
+                  listing && safeUrl
+                    ? trackClicks
+                      ? listingVisitPath(listing.id)
+                      : safeUrl
+                    : null;
 
                 return (
                   <li
@@ -529,20 +552,28 @@ export function LaunchSoonHome({
                     {listing ? (
                       <div className="min-w-0">
                         <div className="flex min-w-0 items-center gap-2">
-                          <p className="truncate text-[15px] font-bold text-white sm:text-base">
-                            {listing.name}
-                          </p>
-                          {safeUrl ? (
+                          {listingHref ? (
                             <a
-                              href={safeUrl}
+                              href={listingHref}
                               target="_blank"
                               rel="sponsored nofollow noopener noreferrer"
                               aria-label={`Visit ${listing.name}, opens in a new tab`}
-                              className="shrink-0 rounded-sm text-[#67e85f] transition-colors hover:text-[#8af384]"
+                              className="group inline-flex min-h-11 max-w-full items-center gap-2 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#67e85f]"
                             >
-                              <ArrowUpRight aria-hidden="true" size={14} />
+                              <span className="truncate text-[15px] font-bold text-white transition-colors group-hover:text-[#83f27c] sm:text-base">
+                                {listing.name}
+                              </span>
+                              <ArrowUpRight
+                                aria-hidden="true"
+                                size={14}
+                                className="shrink-0 text-[#67e85f]"
+                              />
                             </a>
-                          ) : null}
+                          ) : (
+                            <p className="truncate text-[15px] font-bold text-white sm:text-base">
+                              {listing.name}
+                            </p>
+                          )}
                         </div>
                         <p className="mt-0.5 line-clamp-1 text-xs text-[#8f98a1] sm:text-[13px]">
                           {listing.description}
@@ -582,6 +613,7 @@ export function LaunchSoonHome({
               settings={settings}
               biddingEnabled={biddingEnabled}
               disabledBidLabel={disabledBidLabel}
+              trackClicks={trackClicks}
               onBid={openBid}
             />
 
