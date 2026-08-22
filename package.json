@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "seed:prelaunch": "node --env-file-if-exists=.env.local scripts/seed-prelaunch.mjs",
     "firebase:emulators": "npx firebase-tools emulators:start",
     "firebase:deploy": "npx firebase-tools deploy --only firestore,functions",
     "verify": "npm run lint && npm run typecheck && npm run test && npm run build"

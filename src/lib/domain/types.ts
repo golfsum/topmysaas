@@ -80,7 +80,7 @@ export type AdminDashboardData = {
 };
 
 export const DEFAULT_BOARD_SETTINGS: BoardSettings = {
-  minBidCents: 5_000,
+  minBidCents: 500,
   minIncrementCents: 100,
   checkoutCloseMinutes: 30,
   currency: "usd",

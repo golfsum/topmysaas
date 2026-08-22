@@ -16,8 +16,9 @@ test("renders the launch auction without layout overflow", async ({ page }) => {
   await expect(
     page.getByRole("heading", { level: 2, name: "Current launch bids" }),
   ).toBeVisible();
-  await expect(page.getByText("NexusFlow").first()).toBeVisible();
-  await expect(page.getByRole("listitem").filter({ hasText: "CloudBolt" })).toBeVisible();
+  await expect(page.getByText("ClientPlot.com").first()).toBeVisible();
+  await expect(page.getByRole("listitem").filter({ hasText: "AppsResolve.com" })).toBeVisible();
+  await expect(page.locator("#leaderboard").getByText("Open for bids")).toHaveCount(3);
   await expect(page.getByText("Preview data")).toBeVisible();
 
   const hasHorizontalOverflow = await page.evaluate(
@@ -36,14 +37,14 @@ test("submits a complete bid form to the checkout endpoint", async ({ page }) =>
       contentType: "application/json",
       body: JSON.stringify({
         checkoutUrl: "http://127.0.0.1:3107/terms?checkout_test=1",
-        chargedTodayCents: 24_800,
-        targetTotalCents: 24_800,
+        chargedTodayCents: 700,
+        targetTotalCents: 700,
       }),
     });
   });
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Take #1 for $248" }).click();
+  await page.getByRole("button", { name: "Take #1 for $7" }).click();
   await expect(page.getByRole("dialog", { name: "Place your bid" })).toBeVisible();
 
   await page.getByLabel("Product name").fill("Test Pilot");
@@ -51,7 +52,7 @@ test("submits a complete bid form to the checkout endpoint", async ({ page }) =>
   await page
     .getByLabel("Short description")
     .fill("A focused SaaS product used to verify the checkout path.");
-  await page.getByLabel("New total bid").fill("248");
+  await page.getByLabel("New total bid").fill("7");
   await page.getByRole("checkbox").check();
   await page.getByRole("button", { name: "Continue to secure checkout" }).click();
 
@@ -60,7 +61,7 @@ test("submits a complete bid form to the checkout endpoint", async ({ page }) =>
     name: "Test Pilot",
     url: "https://testpilot.example/",
     description: "A focused SaaS product used to verify the checkout path.",
-    targetTotalCents: 24_800,
+    targetTotalCents: 700,
   });
 });
 

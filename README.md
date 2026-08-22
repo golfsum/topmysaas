@@ -61,6 +61,15 @@ The default URL is `http://localhost:3000`.
 
 For a UI-only preview, set `DEMO_MODE=true`. Preview data is clearly labeled and the server refuses real Checkout creation while demo mode is active.
 
+The preview board contains only ClientPlot.com at $6 and AppsResolve.com at $5. To add those same two listings to the current Firestore board, configure Firebase credentials in `.env.local`, review the dry run, then seed once:
+
+```bash
+npm run seed:prelaunch -- --dry-run
+npm run seed:prelaunch
+```
+
+The seed command also sets the current minimum bid to $5 and the minimum increment to $1. It is idempotent for the active weekly board and does not create payment-history records for the seeded amounts.
+
 ## Environment variables
 
 | Variable | Scope | Purpose |

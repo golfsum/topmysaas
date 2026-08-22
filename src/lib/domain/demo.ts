@@ -6,39 +6,18 @@ const demoProducts: Array<
   Pick<PublicListing, "id" | "name" | "url" | "description" | "bidAmountCents">
 > = [
   {
-    id: "demo-nexusflow",
-    name: "NexusFlow",
-    url: "https://nexusflow.example",
-    description: "AI workflow automation for modern product teams.",
-    bidAmountCents: 24_700,
+    id: "preview-clientplot",
+    name: "ClientPlot.com",
+    url: "https://clientplot.com",
+    description: "ClientPlot's official product website.",
+    bidAmountCents: 600,
   },
   {
-    id: "demo-flowkit",
-    name: "Flowkit",
-    url: "https://flowkit.example",
-    description: "No-code automation that connects your daily tools.",
-    bidAmountCents: 18_900,
-  },
-  {
-    id: "demo-chatlayer",
-    name: "ChatLayer",
-    url: "https://chatlayer.example",
-    description: "Fast customer support for growing software teams.",
-    bidAmountCents: 15_600,
-  },
-  {
-    id: "demo-metricly",
-    name: "Metricly",
-    url: "https://metricly.example",
-    description: "Simple product analytics and decision-ready insights.",
-    bidAmountCents: 12_800,
-  },
-  {
-    id: "demo-cloudbolt",
-    name: "CloudBolt",
-    url: "https://cloudbolt.example",
-    description: "Cloud operations without the infrastructure overhead.",
-    bidAmountCents: 9_700,
+    id: "preview-appsresolve",
+    name: "AppsResolve.com",
+    url: "https://appsresolve.com",
+    description: "AI-assisted application support with human review.",
+    bidAmountCents: 500,
   },
 ];
 
