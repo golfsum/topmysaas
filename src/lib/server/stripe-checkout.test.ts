@@ -9,7 +9,10 @@ const checkoutServiceSource = readFileSync(
 );
 
 describe("Stripe Checkout compatibility", () => {
-  it("lets Managed Payments select the available payment methods", () => {
+  it("uses standard Stripe Payments for leaderboard placement", () => {
     expect(checkoutServiceSource).not.toMatch(/\bpayment_method_types\s*:/);
+    expect(checkoutServiceSource).toMatch(
+      /managed_payments:\s*{\s*enabled:\s*false\s*}/,
+    );
   });
 });

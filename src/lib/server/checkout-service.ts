@@ -366,6 +366,9 @@ export async function createCheckout(
     session = await getStripe().checkout.sessions.create(
       {
         mode: "payment",
+        // Weekly leaderboard placement is an advertising service, which is not
+        // eligible for Stripe Managed Payments.
+        managed_payments: { enabled: false },
         client_reference_id: intentId,
         metadata: {
           bidIntentId: intentId,
