@@ -43,6 +43,9 @@
     "vitest": "^4.1.11"
   },
   "overrides": {
+    "jwks-rsa": {
+      "jose": "4.15.9"
+    },
     "uuid": "^11.1.1"
   }
 }
